@@ -17,6 +17,7 @@ public class DataIsolationGuard {
     private final ReferralRepository referralRepository;
     private final TransferRepository transferRepository;
     private final DoctorRepository doctorRepository;
+    private final DepartmentRepository departmentRepository;
 
     public DataIsolationGuard(
             PatientRepository patientRepository,
@@ -24,7 +25,8 @@ public class DataIsolationGuard {
             LabReportRepository labReportRepository,
             ReferralRepository referralRepository,
             TransferRepository transferRepository,
-            DoctorRepository doctorRepository
+            DoctorRepository doctorRepository,
+            DepartmentRepository departmentRepository
     ) {
         this.patientRepository = patientRepository;
         this.prescriptionRepository = prescriptionRepository;
@@ -32,6 +34,7 @@ public class DataIsolationGuard {
         this.referralRepository = referralRepository;
         this.transferRepository = transferRepository;
         this.doctorRepository = doctorRepository;
+        this.departmentRepository = departmentRepository;
     }
 
     public UserPrincipal getCurrentPrincipal() {
@@ -219,6 +222,29 @@ public class DataIsolationGuard {
             boolean isFrom = hospId != null && hospId.equalsIgnoreCase(trf.getFromHospitalId());
             boolean isTo = hospId != null && hospId.equalsIgnoreCase(trf.getToHospitalId());
             return isFrom || isTo || canAccessPatient(trf.getPatientId());
+        }
+
+        return false;
+    }
+
+    public boolean canAccessDepartment(String departmentId) {
+        if (departmentId == null || departmentId.trim().isEmpty()) {
+            return false;
+        }
+
+        UserPrincipal principal = getCurrentPrincipal();
+        if (principal == null) return false;
+
+        if (principal.getRole() == Role.SUPER_ADMIN) {
+            return true;
+        }
+
+        Optional<Department> opt = departmentRepository.findById(departmentId);
+        if (opt.isEmpty()) return false;
+        Department dept = opt.get();
+
+        if (principal.getRole() == Role.HOSPITAL_ADMIN || principal.getRole() == Role.DOCTOR) {
+            return principal.getHospitalId() != null && principal.getHospitalId().equalsIgnoreCase(dept.getHospitalId());
         }
 
         return false;

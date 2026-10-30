@@ -1,6 +1,7 @@
 package com.hospitrack.controller;
 
 import com.hospitrack.dto.ApiResponse;
+import com.hospitrack.dto.EligibleHospitalDto;
 import com.hospitrack.dto.ReviewRequest;
 import com.hospitrack.entity.Review;
 import com.hospitrack.security.UserPrincipal;
@@ -34,6 +35,16 @@ public class ReviewController {
     public ResponseEntity<ApiResponse<List<Review>>> getReviewsByPatient(@PathVariable String patientId) {
         List<Review> reviews = reviewService.getReviewsByPatient(patientId);
         return ResponseEntity.ok(ApiResponse.success("Patient reviews retrieved.", reviews));
+    }
+
+    @GetMapping("/eligible-hospitals")
+    @PreAuthorize("hasRole('PATIENT') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<List<EligibleHospitalDto>>> getEligibleHospitals(
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        String patientId = principal.getPatientId() != null ? principal.getPatientId() : principal.getId();
+        List<EligibleHospitalDto> eligible = reviewService.getEligibleHospitalsForPatient(patientId);
+        return ResponseEntity.ok(ApiResponse.success("Eligible hospitals for review retrieved.", eligible));
     }
 
     @PostMapping

@@ -29,11 +29,20 @@ public class Review {
     @Column(name = "rating", nullable = false)
     private Integer rating; // 1 to 5
 
+    @Column(name = "title", length = 256)
+    private String title;
+
     @Column(name = "review_text", columnDefinition = "TEXT")
     private String reviewText;
 
     @Column(name = "status", nullable = false, length = 32)
     private String status = "APPROVED"; // APPROVED | FLAGGED | HIDDEN
+
+    @Column(name = "verified_interaction", nullable = false)
+    private boolean verifiedInteraction = true;
+
+    @Column(name = "interaction_details", length = 256)
+    private String interactionDetails;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -49,6 +58,22 @@ public class Review {
         this.rating = rating;
         this.reviewText = reviewText;
         this.status = "APPROVED";
+        this.verifiedInteraction = true;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public Review(String id, String patientId, String patientName, String hospitalId, String hospitalName, Integer rating, String title, String reviewText, String interactionDetails) {
+        this.id = id;
+        this.patientId = patientId;
+        this.patientName = patientName;
+        this.hospitalId = hospitalId;
+        this.hospitalName = hospitalName;
+        this.rating = rating;
+        this.title = title;
+        this.reviewText = reviewText;
+        this.interactionDetails = interactionDetails;
+        this.status = "APPROVED";
+        this.verifiedInteraction = true;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -70,11 +95,20 @@ public class Review {
     public Integer getRating() { return rating; }
     public void setRating(Integer rating) { this.rating = rating; }
 
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+
     public String getReviewText() { return reviewText; }
     public void setReviewText(String reviewText) { this.reviewText = reviewText; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public boolean isVerifiedInteraction() { return verifiedInteraction; }
+    public void setVerifiedInteraction(boolean verifiedInteraction) { this.verifiedInteraction = verifiedInteraction; }
+
+    public String getInteractionDetails() { return interactionDetails; }
+    public void setInteractionDetails(String interactionDetails) { this.interactionDetails = interactionDetails; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

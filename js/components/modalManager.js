@@ -141,6 +141,13 @@ window.openModal = function(modalId) {
   }
 };
 
+window.openCredentialPolicyModal = function() {
+  const el = document.getElementById('credentialPolicyModal');
+  if (el) {
+    el.classList.add('open');
+  }
+};
+
 window.closeModal = function(modalId) {
   const el = document.getElementById(modalId);
   if (el) {
@@ -510,6 +517,39 @@ function renderAccountSettingsTabContent(tab, user) {
       `;
 
     case 'preferences':
+      if (user && user.role === 'PATIENT') {
+        return `
+          <form onsubmit="event.preventDefault(); window.showToast('Patient notification preferences saved.', 'success'); closeGlobalModal('accountSettingsModal');">
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+              <label style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-surface-alt); border-radius: var(--radius-sm); border: 1px solid var(--border-color); cursor: pointer;">
+                <div>
+                  <strong style="font-size: 0.88rem; color: var(--text-main);">Clinical Record Notifications</strong>
+                  <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Receive email alerts when new prescriptions or verified lab results are signed.</p>
+                </div>
+                <input type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--primary);">
+              </label>
+              <label style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-surface-alt); border-radius: var(--radius-sm); border: 1px solid var(--border-color); cursor: pointer;">
+                <div>
+                  <strong style="font-size: 0.88rem; color: var(--text-main);">Follow-Up &amp; Care Reminders</strong>
+                  <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Reminders for upcoming specialist follow-ups and discharge instructions.</p>
+                </div>
+                <input type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--primary);">
+              </label>
+              <label style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-surface-alt); border-radius: var(--radius-sm); border: 1px solid var(--border-color); cursor: pointer;">
+                <div>
+                  <strong style="font-size: 0.88rem; color: var(--text-main);">Hospital Care &amp; Review Alerts</strong>
+                  <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Invites to provide verified feedback on treating healthcare facilities.</p>
+                </div>
+                <input type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--primary);">
+              </label>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeGlobalModal('accountSettingsModal')">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Preferences</button>
+            </div>
+          </form>
+        `;
+      }
       return `
         <form onsubmit="event.preventDefault(); window.showToast('Notification preferences saved.', 'success'); closeGlobalModal('accountSettingsModal');">
           <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
@@ -543,7 +583,28 @@ function renderAccountSettingsTabContent(tab, user) {
       `;
 
     case 'security':
-    default:
+    default: {
+      const user = window.hospitrackAuth ? window.hospitrackAuth.getCurrentUser() : null;
+      if (user && (user.role === 'DOCTOR' || user.role === 'PATIENT')) {
+        return `
+          <div style="padding: 18px; background: var(--bg-surface-alt); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <span style="font-size: 1.2rem;">🔒</span>
+              <strong style="font-size: 0.92rem; color: var(--text-main);">Institutional Credential Governance</strong>
+            </div>
+            <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; margin: 0 0 12px 0;">
+              Under Hospitrack's healthcare credential governance policy, your login credentials and security tokens are managed directly by your Hospital Administration (Facility: <strong>${escapeHtml(user.hospitalId || 'Assigned Facility')}</strong>). Self-service credential changes are disabled for clinical data safety.
+            </p>
+            <div class="alert-banner info" style="font-size: 0.78rem;">
+              To request a credential reset or security update, contact your Hospital Operations Desk or Facility Administrator.
+            </div>
+            <div class="modal-actions" style="margin-top: 1.25rem; display: flex; justify-content: flex-end;">
+              <button type="button" class="btn btn-secondary" onclick="closeGlobalModal('accountSettingsModal')">Close</button>
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <form id="changePasswordForm" onsubmit="handlePasswordChangeSubmit(event)">
           <div id="changePwdAlert" class="alert-banner hidden mb-16"></div>
@@ -569,6 +630,7 @@ function renderAccountSettingsTabContent(tab, user) {
           </div>
         </form>
       `;
+    }
   }
 }
 
@@ -606,7 +668,7 @@ window.handlePasswordChangeSubmit = async function(event) {
     }
 
     await window.hospitrackAuth.changePassword(currentPassword, newPassword);
-    window.showToast('✓ Password updated successfully in PostgreSQL!', 'success');
+    window.showToast('✓ Password updated successfully!', 'success');
     closeGlobalModal('accountSettingsModal');
   } catch (err) {
     showPwdAlert(err.message || 'Failed to update password.');

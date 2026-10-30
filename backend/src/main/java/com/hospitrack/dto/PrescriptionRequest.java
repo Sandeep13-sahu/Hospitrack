@@ -18,6 +18,15 @@ public class PrescriptionRequest {
     @NotEmpty(message = "Prescription must contain at least one medicine item.")
     private List<MedicineItemDto> medicines;
 
+    private String clinicalOverrideReason;
+    private Boolean overrideConfirmed = false;
+
+    public String getClinicalOverrideReason() { return clinicalOverrideReason; }
+    public void setClinicalOverrideReason(String clinicalOverrideReason) { this.clinicalOverrideReason = clinicalOverrideReason; }
+
+    public Boolean getOverrideConfirmed() { return overrideConfirmed != null ? overrideConfirmed : false; }
+    public void setOverrideConfirmed(Boolean overrideConfirmed) { this.overrideConfirmed = overrideConfirmed; }
+
     public PrescriptionRequest() {}
 
     public static class MedicineItemDto {

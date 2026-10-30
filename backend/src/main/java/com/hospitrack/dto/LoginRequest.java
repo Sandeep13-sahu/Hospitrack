@@ -1,6 +1,5 @@
 package com.hospitrack.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -16,6 +15,12 @@ public class LoginRequest {
     private boolean rememberMe = false;
 
     public LoginRequest() {}
+
+    public LoginRequest(String identifier, String password) {
+        this.identifier = identifier;
+        this.email = identifier;
+        this.password = password;
+    }
 
     public String getIdentifier() {
         if (identifier != null && !identifier.trim().isEmpty()) {

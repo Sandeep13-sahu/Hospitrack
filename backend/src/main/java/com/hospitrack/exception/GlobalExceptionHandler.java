@@ -60,7 +60,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDenied(AccessDeniedException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("Access denied: You do not have permission to access this healthcare resource."));
+        String msg = (ex.getMessage() != null && !ex.getMessage().isBlank() && !ex.getMessage().equalsIgnoreCase("Access Denied"))
+                ? ex.getMessage()
+                : "Access denied: You do not have permission to access this healthcare resource.";
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(msg));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -74,6 +77,16 @@ public class GlobalExceptionHandler {
         String firstError = errors.values().stream().findFirst().orElse("Validation failed.");
         ApiResponse<Map<String, String>> response = new ApiResponse<>(false, firstError, errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Object>> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error("Malformed request payload or payload exceeds processing limits."));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage() != null ? ex.getMessage() : "Invalid argument provided."));
     }
 
     @ExceptionHandler(jakarta.servlet.ServletException.class)
@@ -94,8 +107,9 @@ public class GlobalExceptionHandler {
         if (cause instanceof AccessDeniedException) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("Access denied: You do not have permission to access this healthcare resource."));
         }
+        logger.error("Unhandled ServletException: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("An unexpected error occurred. Please try again later."));
+                .body(ApiResponse.error(ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred. Please try again later."));
     }
 
     @ExceptionHandler(Exception.class)

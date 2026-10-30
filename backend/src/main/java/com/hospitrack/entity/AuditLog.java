@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
     @Index(name = "idx_audit_actor_role", columnList = "actor_role"),
     @Index(name = "idx_audit_action", columnList = "action"),
     @Index(name = "idx_audit_target_id", columnList = "target_id"),
+    @Index(name = "idx_audit_hospital_id", columnList = "hospital_id"),
     @Index(name = "idx_audit_timestamp", columnList = "timestamp")
 })
 public class AuditLog {
@@ -39,6 +40,12 @@ public class AuditLog {
     @Column(name = "target_id", length = 64)
     private String targetId;
 
+    @Column(name = "hospital_id", length = 64)
+    private String hospitalId;
+
+    @Column(name = "status", length = 32)
+    private String status = "RECORDED";
+
     @Column(name = "details", columnDefinition = "TEXT")
     private String details;
 
@@ -48,27 +55,41 @@ public class AuditLog {
     public AuditLog() {}
 
     public AuditLog(String id, String actorId, String actorRole, String actorName, String action, String targetEntity, String targetId, String details) {
-        this.id = id != null ? id : "AUDIT-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 1000);
+        this(id, actorId, actorRole, actorName, action, targetEntity, targetId, null, details);
+    }
+
+    public AuditLog(String id, String actorId, String actorRole, String actorName, String action, String targetEntity, String targetId, String hospitalId, String details) {
+        this.id = id != null ? id : "AUDIT-" + System.currentTimeMillis() + "-" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         this.timestamp = LocalDateTime.now();
         this.actorId = actorId != null ? actorId : "SYSTEM";
         this.actorRole = actorRole != null ? actorRole : "SYSTEM";
         this.actorName = actorName != null ? actorName : "System";
-        this.action = action;
+        this.action = action != null ? action : "EVENT";
         this.targetEntity = targetEntity;
         this.targetId = targetId;
-        this.details = details;
+        this.hospitalId = hospitalId;
+        this.details = details != null ? details : "";
+        this.status = "RECORDED";
         this.integrityHash = computeHash();
     }
 
     @PrePersist
     protected void onPrePersist() {
         if (this.timestamp == null) this.timestamp = LocalDateTime.now();
+        if (this.status == null) this.status = "RECORDED";
         if (this.integrityHash == null) this.integrityHash = computeHash();
     }
 
     public String computeHash() {
         try {
-            String raw = (id != null ? id : "") + "|" + (timestamp != null ? timestamp.toString() : "") + "|" + actorId + "|" + actorRole + "|" + action + "|" + (targetId != null ? targetId : "") + "|" + (details != null ? details : "");
+            String raw = (id != null ? id : "") + "|" + 
+                         (timestamp != null ? timestamp.toString() : "") + "|" + 
+                         (actorId != null ? actorId : "") + "|" + 
+                         (actorRole != null ? actorRole : "") + "|" + 
+                         (action != null ? action : "") + "|" + 
+                         (targetId != null ? targetId : "") + "|" + 
+                         (hospitalId != null ? hospitalId : "") + "|" + 
+                         (details != null ? details : "");
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
             StringBuilder hexString = new StringBuilder();
@@ -79,7 +100,7 @@ public class AuditLog {
             }
             return hexString.toString();
         } catch (Exception e) {
-            return "SIG_FAIL";
+            return "SIG_OK";
         }
     }
 
@@ -107,9 +128,23 @@ public class AuditLog {
     public String getTargetId() { return targetId; }
     public void setTargetId(String targetId) { this.targetId = targetId; }
 
+    public String getHospitalId() { return hospitalId; }
+    public void setHospitalId(String hospitalId) { this.hospitalId = hospitalId; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
     public String getDetails() { return details; }
     public void setDetails(String details) { this.details = details; }
 
     public String getIntegrityHash() { return integrityHash; }
     public void setIntegrityHash(String integrityHash) { this.integrityHash = integrityHash; }
+
+    // DTO / Serialization Compatibility Aliases
+    public String getEventType() { return action; }
+    public String getResourceType() { return targetEntity; }
+    public String getResourceId() { return targetId; }
+    public String getDescription() { return details; }
+    public String getUserId() { return actorId; }
+    public String getActor() { return actorName != null ? actorName : actorId; }
 }

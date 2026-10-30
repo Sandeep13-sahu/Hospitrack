@@ -21,10 +21,24 @@ public class PrescriptionService {
 
     private final PrescriptionRepository prescriptionRepository;
     private final AuditService auditService;
+    private final PatientEventStreamService eventStreamService;
+    private final ClinicalSafetyEngine clinicalSafetyEngine;
 
-    public PrescriptionService(PrescriptionRepository prescriptionRepository, AuditService auditService) {
+    public PrescriptionService(
+            PrescriptionRepository prescriptionRepository,
+            AuditService auditService,
+            PatientEventStreamService eventStreamService,
+            ClinicalSafetyEngine clinicalSafetyEngine
+    ) {
         this.prescriptionRepository = prescriptionRepository;
         this.auditService = auditService;
+        this.eventStreamService = eventStreamService;
+        this.clinicalSafetyEngine = clinicalSafetyEngine;
+    }
+
+    @Transactional(readOnly = true)
+    public com.hospitrack.dto.ClinicalSafetyReportDto evaluateSafety(PrescriptionRequest request) {
+        return clinicalSafetyEngine.evaluatePrescriptionSafety(request);
     }
 
     @Transactional(readOnly = true)
@@ -44,7 +58,7 @@ public class PrescriptionService {
             throw new BadRequestException("Prescription must contain at least one medicine.");
         }
 
-        // Duplicate medicine safety enforcement rule
+        // Duplicate medicine safety enforcement rule (preserves exact backward compatibility)
         Set<String> seenNames = new HashSet<>();
         for (PrescriptionRequest.MedicineItemDto item : request.getMedicines()) {
             String normalizedName = item.getName() != null ? item.getName().trim().toLowerCase() : "";
@@ -54,6 +68,32 @@ public class PrescriptionService {
                 );
             }
             seenNames.add(normalizedName);
+        }
+
+        // Comprehensive Clinical Decision Support Safety Analysis
+        com.hospitrack.dto.ClinicalSafetyReportDto safetyReport = clinicalSafetyEngine.evaluatePrescriptionSafety(request);
+        if (safetyReport.isHasContraindication()) {
+            com.hospitrack.dto.ClinicalSafetyAlertDto contra = safetyReport.getAlerts().stream()
+                    .filter(a -> "CONTRAINDICATED".equalsIgnoreCase(a.getSeverity()))
+                    .findFirst().orElse(null);
+            String detail = contra != null ? contra.getTitle() + ": " + contra.getDescription() : "Contraindicated drug therapy.";
+            throw new PrescriptionSafetyViolationException("CRITICAL SAFETY BLOCK: " + detail);
+        }
+
+        if (safetyReport.isHasAllergyAlert() && !Boolean.TRUE.equals(request.getOverrideConfirmed())) {
+            com.hospitrack.dto.ClinicalSafetyAlertDto allergyAlert = safetyReport.getAlerts().stream()
+                    .filter(a -> "ALLERGY_CONTRAINDICATION".equalsIgnoreCase(a.getSeverity()))
+                    .findFirst().orElse(null);
+            String detail = allergyAlert != null ? allergyAlert.getTitle() : "Documented patient drug allergy match.";
+            throw new PrescriptionSafetyViolationException("CRITICAL DRUG-ALLERGY ALERT: " + detail + " Documented patient allergy detected. Clinical override rationale is required to proceed.");
+        }
+
+        if (safetyReport.isHasMajorAlert() && !Boolean.TRUE.equals(request.getOverrideConfirmed())) {
+            com.hospitrack.dto.ClinicalSafetyAlertDto majorAlert = safetyReport.getAlerts().stream()
+                    .filter(a -> "MAJOR".equalsIgnoreCase(a.getSeverity()))
+                    .findFirst().orElse(null);
+            String detail = majorAlert != null ? majorAlert.getTitle() : "Severe Drug-Drug Interaction detected.";
+            throw new PrescriptionSafetyViolationException("HIGH-RISK DRUG INTERACTION: " + detail + " Clinical override rationale required before signing pharmacotherapy order.");
         }
 
         String id = "RX-" + (800 + prescriptionRepository.count() + 1);
@@ -86,8 +126,17 @@ public class PrescriptionService {
             medSummary.append(m.getName()).append(" (").append(m.getDosage()).append(")");
         }
 
-        auditService.logEvent(actorId, actorRole, actorName, "CREATE_PRESCRIPTION", "PRESCRIPTION", saved.getId(),
+        auditService.logEvent(actorId, actorRole, actorName, "PRESCRIPTION_CREATED", "PRESCRIPTION", saved.getId(),
                 "Issued prescription " + saved.getId() + " for " + saved.getPatientId() + ": " + medSummary);
+
+        if (Boolean.TRUE.equals(request.getOverrideConfirmed()) && request.getClinicalOverrideReason() != null && !request.getClinicalOverrideReason().isBlank()) {
+            auditService.logEvent(actorId, actorRole, actorName, "PRESCRIPTION_CLINICAL_OVERRIDE", "PRESCRIPTION", saved.getId(),
+                    "Physician override confirmed for " + saved.getId() + ": " + request.getClinicalOverrideReason().trim());
+        }
+
+        if (saved.getPatientId() != null) {
+            eventStreamService.emitPatientEvent(saved.getPatientId(), "PRESCRIPTION_CREATED", saved);
+        }
 
         return saved;
     }

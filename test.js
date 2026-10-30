@@ -246,15 +246,15 @@ async function runQaSuite() {
     console.log(`  ✓ Super Admin verified ${auditLogs.data.data.length} immutable SHA-256 audit ledger entries`);
 
     // 8. Public Registration Validation
-    console.log('[8/8] Testing Public Registration & SUPER_ADMIN Registration Block...');
+    console.log('[8/8] Testing Public Registration & Account Creation Block...');
     const regAdmin = await post('/api/auth/register', {
       name: 'Illegal Admin Sign-up',
       email: `eviladmin.${Date.now()}@domain.com`,
       password: 'Hacker@Password123!',
       role: 'SUPER_ADMIN'
     });
-    console.assert(regAdmin.status === 400, 'Public Super Admin registration must be rejected with 400');
-    console.log('  ✓ Public Super Admin registration blocked with 400 Bad Request');
+    console.assert(regAdmin.status === 403 || regAdmin.status === 400, `Public registration must be rejected with 403 or 400 (got ${regAdmin.status})`);
+    console.log('  ✓ Public self-registration rejected with 403 Forbidden / 400 Bad Request');
 
     console.log('\n======================================================');
     console.log('  ALL TEST SUITES PASSED (100% SUCCESS)');

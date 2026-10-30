@@ -77,7 +77,9 @@ public class ReferralController {
             @AuthenticationPrincipal UserPrincipal principal
     ) {
         String status = payload.get("status");
-        Referral updated = referralService.updateStatus(id, status, principal.getId(), principal.getRole().name(), principal.getName());
+        String reason = payload.get("reason");
+        String notes = payload.get("notes");
+        Referral updated = referralService.updateStatus(id, status, reason, notes, principal.getId(), principal.getRole().name(), principal.getName());
         return ResponseEntity.ok(ApiResponse.success("Referral status updated.", updated));
     }
 }

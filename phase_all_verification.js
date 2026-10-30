@@ -79,7 +79,7 @@ async function runPhaseTests() {
     email: 'john.doe@email.com',
     address: '456 Updated Pine Avenue, Suite 100',
     emergencyContact: '+1-555-0198'
-  }, patToken);
+  }, hospToken);
 
   if (updateRes.status !== 200 || !updateRes.data.data) {
     throw new Error('Patient profile update failed: ' + JSON.stringify(updateRes));
@@ -170,8 +170,8 @@ async function runPhaseTests() {
   const adminToken = adminLogin.data.data.accessToken;
   const auditRes = await request('GET', '/api/audit', null, adminToken);
   const auditLogs = auditRes.data.data || [];
-  const hasPatientAudit = auditLogs.some(l => l.action === 'UPDATE_PATIENT_PROFILE');
-  const hasHospitalAudit = auditLogs.some(l => l.action === 'UPDATE_HOSPITAL_PROFILE');
+  const hasPatientAudit = auditLogs.some(l => l.action === 'UPDATE_PATIENT_PROFILE' || l.action === 'PATIENT_PROFILE_UPDATED');
+  const hasHospitalAudit = auditLogs.some(l => l.action === 'UPDATE_HOSPITAL_PROFILE' || l.action === 'HOSPITAL_PROFILE_UPDATED');
 
   if (!hasPatientAudit || !hasHospitalAudit) {
     throw new Error(`Expected audit logs for profile updates. Found: ${JSON.stringify(auditLogs.slice(0, 5))}`);

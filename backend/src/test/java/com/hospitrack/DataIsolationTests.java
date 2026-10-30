@@ -133,19 +133,19 @@ public class DataIsolationTests {
     }
 
     @Test
-    @DisplayName("[6] Unauthenticated Request: Protected endpoints return 403 Forbidden without token")
+    @DisplayName("[6] Unauthenticated Request: Protected endpoints return 401 Unauthorized without token")
     void testUnauthenticatedBlocked() throws Exception {
         mockMvc.perform(get("/api/patients/PAT-301"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("[7] Profile Update: Patient A can update own profile successfully")
-    void testPatientCanUpdateOwnProfile() throws Exception {
+    @DisplayName("[7] Profile Ownership: Patient A attempting to update patient profile is BLOCKED (403 Forbidden)")
+    void testPatientCannotUpdatePatientProfile() throws Exception {
         String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
         String payload = """
         {
-            "name": "Alice Updated",
+            "name": "Alice Modified Name Attempt",
             "gender": "Female",
             "age": 32,
             "bloodGroup": "O+",
@@ -160,13 +160,11 @@ public class DataIsolationTests {
                         .header("Authorization", "Bearer " + tokenPatientA)
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("Alice Updated"))
-                .andExpect(jsonPath("$.data.contact").value("+91 98765 11111"));
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("[8] IDOR Prevention: Patient A attempting to update Patient B profile is BLOCKED (403 Forbidden)")
+    @DisplayName("[8] IDOR & Role Protection: Patient A attempting to update Patient B profile is BLOCKED (403 Forbidden)")
     void testPatientCannotUpdateOtherPatientProfile() throws Exception {
         String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
         String payload = """
@@ -184,6 +182,114 @@ public class DataIsolationTests {
                         .header("Authorization", "Bearer " + tokenPatientA)
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content(payload))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("[9] Hospital Admin Profile Management: Super Admin can update patient profile and photo")
+    void testSuperAdminCanUpdatePatientProfile() throws Exception {
+        String tokenAdmin = jwtTokenProvider.generateTokenFromUser(superAdminUser);
+        String payload = """
+        {
+            "name": "John Doe Updated",
+            "gender": "Male",
+            "age": 42,
+            "bloodGroup": "O+",
+            "contact": "+91 98765 43210",
+            "email": "alice.superadminupdate@test.com",
+            "address": "123 Healthcare Blvd",
+            "emergencyContact": "+91 98765 00000"
+        }
+        """;
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/patients/PAT-301")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("John Doe Updated"))
+                .andExpect(jsonPath("$.data.age").value(42));
+    }
+
+    @Test
+    @DisplayName("[10] Photo Governance: Patient attempting to upload profile photo is BLOCKED (403 Forbidden)")
+    void testPatientCannotUploadProfilePhoto() throws Exception {
+        String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
+        String payload = "{\"photo\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}";
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/profile/photo")
+                        .header("Authorization", "Bearer " + tokenPatientA)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("Patient profile photo is managed by your hospital administration")));
+    }
+
+    @Test
+    @DisplayName("[11] Photo Governance: Patient attempting to delete profile photo is BLOCKED (403 Forbidden)")
+    void testPatientCannotRemoveProfilePhoto() throws Exception {
+        String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/auth/profile/photo")
+                        .header("Authorization", "Bearer " + tokenPatientA))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("Patient profile photo is managed by your hospital administration")));
+    }
+
+    @Test
+    @DisplayName("[12] Direct Patient Photo Endpoint: Patient attempting to upload via /api/patients/{id}/photo is BLOCKED (403 Forbidden)")
+    void testPatientCannotUploadPatientPhotoDirectly() throws Exception {
+        String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
+        String payload = "{\"photo\": \"data:image/png;base64,test\"}";
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/patients/PAT-301/photo")
+                        .header("Authorization", "Bearer " + tokenPatientA)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("[13] Credential Governance: Patient attempting self-service password change is BLOCKED (403 Forbidden)")
+    void testPatientCannotSelfChangePassword() throws Exception {
+        String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
+        String payload = "{\"currentPassword\": \"Pass123!\", \"newPassword\": \"NewSecret@2026!\"}";
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/auth/change-password")
+                        .header("Authorization", "Bearer " + tokenPatientA)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("Credential Governance Policy")));
+    }
+
+    @Test
+    @DisplayName("[14] Timeline Privacy: Patient A accessing Patient B timeline is BLOCKED (403 Forbidden)")
+    void testPatientCannotAccessOtherPatientTimeline() throws Exception {
+        String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/patients/PAT-302/timeline")
+                        .header("Authorization", "Bearer " + tokenPatientA))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("[15] Prescription Privacy: Patient A accessing Patient B prescriptions is BLOCKED (403 Forbidden)")
+    void testPatientCannotAccessOtherPatientPrescriptions() throws Exception {
+        String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/prescriptions/patient/PAT-302")
+                        .header("Authorization", "Bearer " + tokenPatientA))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("[16] Laboratory Privacy: Patient A accessing Patient B lab reports is BLOCKED (403 Forbidden)")
+    void testPatientCannotAccessOtherPatientLabReports() throws Exception {
+        String tokenPatientA = jwtTokenProvider.generateTokenFromUser(patientUserA);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/labs/patient/PAT-302")
+                        .header("Authorization", "Bearer " + tokenPatientA))
                 .andExpect(status().isForbidden());
     }
 }

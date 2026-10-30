@@ -416,7 +416,7 @@ function renderDeptTabContent(dept, doctors, patients, referrals, hospital, tota
         <div class="glass-panel" style="padding: 1.25rem;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3 style="margin: 0; font-size: 1.1rem; color: #fff;">${escapeHtml(dept.name)} — Ward & Bed Capacity</h3>
-            <a href="#hospital/capacity" class="btn btn-secondary btn-sm">Bed Management Panel →</a>
+            <a href="#hospital/ward-management" class="btn btn-secondary btn-sm">Ward &amp; Bed Capacity Panel →</a>
           </div>
           
           <div class="stats-grid" style="margin-bottom: 1.5rem;">

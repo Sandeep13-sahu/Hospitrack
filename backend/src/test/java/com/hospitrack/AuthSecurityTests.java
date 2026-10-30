@@ -118,7 +118,7 @@ public class AuthSecurityTests {
     }
 
     @Test
-    @DisplayName("[5] Security: Registration cannot self-assign SUPER_ADMIN role")
+    @DisplayName("[5] Security: Public registration is REJECTED with 403 Forbidden")
     void testSuperAdminRegistrationRejected() throws Exception {
         RegisterRequest req = new RegisterRequest();
         req.setName("Malicious Attacker");
@@ -129,7 +129,7 @@ public class AuthSecurityTests {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
@@ -149,7 +149,7 @@ public class AuthSecurityTests {
     }
 
     @Test
-    @DisplayName("[7] Patient Registration: Direct ACTIVE status and instant login")
+    @DisplayName("[7] Public Patient Registration: REJECTED with 403 Forbidden (Login Only)")
     void testPatientRegistrationAndLogin() throws Exception {
         String testEmail = "newpatient" + System.currentTimeMillis() + "@email.com";
         RegisterRequest regReq = new RegisterRequest();
@@ -164,27 +164,13 @@ public class AuthSecurityTests {
         mockMvc.perform(post("/api/auth/register/patient")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(regReq)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.email").value(testEmail))
-                .andExpect(jsonPath("$.data.role").value("PATIENT"));
-
-        // Verify patient can immediately log in without email verification
-        LoginRequest loginReq = new LoginRequest();
-        loginReq.setIdentifier(testEmail);
-        loginReq.setPassword("SecurePass123!");
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginReq)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accessToken").isString())
-                .andExpect(jsonPath("$.data.redirectUrl").value("/patient"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Public self-registration is disabled")));
     }
 
     @Test
-    @DisplayName("[8] Hospital Registration: Sets PENDING_APPROVAL status")
+    @DisplayName("[8] Public Hospital Registration: REJECTED with 403 Forbidden (Login Only)")
     void testHospitalRegistrationPendingApproval() throws Exception {
         String testHospEmail = "facility" + System.currentTimeMillis() + "@hospital.org";
         RegisterRequest regReq = new RegisterRequest();
@@ -199,20 +185,9 @@ public class AuthSecurityTests {
         mockMvc.perform(post("/api/auth/register/hospital")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(regReq)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.role").value("HOSPITAL_ADMIN"));
-
-        // Login before approval should be rejected as locked/pending approval
-        LoginRequest loginReq = new LoginRequest();
-        loginReq.setIdentifier(testHospEmail);
-        loginReq.setPassword("HospitalAdmin123!");
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Your hospital account is awaiting administrator approval."));
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Public hospital self-registration is disabled")));
     }
 
     @Test
@@ -232,23 +207,18 @@ public class AuthSecurityTests {
     }
 
     @Test
-    @DisplayName("[10] Duplicate Patient Email: Rejected with 409 Conflict")
+    @DisplayName("[10] Public Doctor Registration: REJECTED with 403 Forbidden")
     void testDuplicatePatientEmail() throws Exception {
-        String duplicateEmail = "duplicate" + System.currentTimeMillis() + "@email.com";
         RegisterRequest regReq = new RegisterRequest();
-        regReq.setName("Original User");
-        regReq.setEmail(duplicateEmail);
+        regReq.setName("Doctor Applicant");
+        regReq.setEmail("doctor.applicant@hospital.com");
         regReq.setPassword("Password123!");
 
-        mockMvc.perform(post("/api/auth/register/patient")
+        mockMvc.perform(post("/api/auth/register/doctor")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(regReq)))
-                .andExpect(status().isOk());
-
-        // Attempt second registration with same email
-        mockMvc.perform(post("/api/auth/register/patient")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(regReq)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Public doctor self-registration is disabled")));
     }
 }

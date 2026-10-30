@@ -28,26 +28,45 @@ async function runTests() {
   const initialPassword = 'InitialPassword123!';
   const updatedPassword = 'UpdatedSecurePassword123!';
 
+  // 1. Authenticate Hospital Admin to provision a test patient
+  const hospAdminLogin = await request({
+    hostname: 'localhost',
+    port: 8080,
+    path: '/api/auth/login',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }, { identifier: 'admin@citygeneral.in', password: 'Hospital@123!' });
+
+  if (hospAdminLogin.status !== 200 || !hospAdminLogin.body.data?.accessToken) {
+    console.error('Failed to authenticate hospital admin:', hospAdminLogin);
+    process.exit(1);
+  }
+  const hospAdminToken = hospAdminLogin.body.data.accessToken;
+
   const regRes = await request({
     hostname: 'localhost',
     port: 8080,
-    path: '/api/auth/register/patient',
+    path: '/api/patients',
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${hospAdminToken}`
+    }
   }, {
     name: 'Password Tester',
-    username: `pwuser_${uniqueId}`,
     email: testEmail,
-    phone: '+91 99999 88888',
+    contact: '+91 99999 88888',
     password: initialPassword,
+    initialPassword: initialPassword,
     age: 30,
     gender: 'Other',
     bloodGroup: 'O+',
     address: 'Testing Lab',
-    emergencyContact: '+91 99999 77777'
+    emergencyContact: '+91 99999 77777',
+    primaryDoctorId: 'DOC-201'
   });
 
-  if (regRes.status !== 200 || !regRes.body.success) {
+  if ((regRes.status !== 200 && regRes.status !== 201) || !regRes.body.success) {
     console.error('Failed to register test user:', regRes);
     process.exit(1);
   }

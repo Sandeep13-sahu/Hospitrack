@@ -35,14 +35,21 @@ class AuthService {
   }
 
   isAuthenticated() {
-    return !!this.accessToken && !!this.currentUser;
+    return !!this.getAccessToken() && !!this.getCurrentUser();
   }
 
   getAccessToken() {
+    if (!this.accessToken) {
+      const keys = this.config?.STORAGE_KEYS || { ACCESS_TOKEN: 'hospitrack_access_token' };
+      this.accessToken = sessionStorage.getItem(keys.ACCESS_TOKEN) || localStorage.getItem(keys.ACCESS_TOKEN) || null;
+    }
     return this.accessToken;
   }
 
   getCurrentUser() {
+    if (!this.currentUser) {
+      this.currentUser = this.loadStoredUser();
+    }
     return this.currentUser;
   }
 
@@ -121,7 +128,13 @@ class AuthService {
         localStorage.setItem(keys.REFRESH_TOKEN, this.refreshToken);
       }
 
-      return authData;
+      const returnUser = {
+        ...authData.user,
+        accessToken: authData.accessToken,
+        refreshToken: authData.refreshToken,
+        user: authData.user
+      };
+      return returnUser;
     } catch (err) {
       if (err.status) {
         // Backend responded with HTTP status error - preserve actual message
@@ -415,6 +428,9 @@ class AuthService {
     localStorage.removeItem(keys.AUTH_USER);
     localStorage.removeItem(keys.REFRESH_TOKEN);
     localStorage.removeItem(keys.REMEMBER_ME);
+    if (window.hospitrackStore && typeof window.hospitrackStore.stopRealtimeCareStream === 'function') {
+      window.hospitrackStore.stopRealtimeCareStream();
+    }
     if (window.hospitrackStore && typeof window.hospitrackStore.clearAll === 'function') {
       window.hospitrackStore.clearAll();
     }

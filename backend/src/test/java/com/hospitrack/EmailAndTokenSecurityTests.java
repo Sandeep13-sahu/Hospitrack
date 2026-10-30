@@ -85,66 +85,67 @@ public class EmailAndTokenSecurityTests {
     }
 
     @Test
-    @DisplayName("[1] Email Verification: Raw token verified against stored hash, single-use enforced")
+    @DisplayName("[1] Email Verification: Public self-service verification is disabled (403 Forbidden)")
     void testEmailVerificationFlow() throws Exception {
-        String rawToken = "raw-verification-token-xyz-123";
-        String tokenHash = sha256(rawToken);
+        VerifyEmailRequest req = new VerifyEmailRequest("some-token");
 
-        verificationTokenRepository.deleteByUserId(unverifiedUser.getId());
-        EmailVerificationToken evt = new EmailVerificationToken(unverifiedUser.getId(), tokenHash, LocalDateTime.now().plusHours(24));
-        verificationTokenRepository.save(evt);
-
-        VerifyEmailRequest req = new VerifyEmailRequest(rawToken);
-
-        // 1st verification attempt: SUCCEEDS
         mockMvc.perform(post("/api/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-
-        User refreshed = userRepository.findById(unverifiedUser.getId()).orElseThrow();
-        assertTrue(refreshed.isEmailVerified(), "User emailVerified flag must be true");
-
-        // 2nd verification attempt (Replay / Reuse): FAILS
-        mockMvc.perform(post("/api/auth/verify-email")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("already been used")));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Email verification is managed by hospital administrators.")));
     }
 
     @Test
-    @DisplayName("[2] Password Reset: Single-use hashed token resets password, old password invalid")
-    void testPasswordResetFlow() throws Exception {
-        String rawResetToken = "raw-password-reset-token-abc-999";
-        String tokenHash = sha256(rawResetToken);
-
-        resetTokenRepository.deleteByUserId(unverifiedUser.getId());
-        PasswordResetToken prt = new PasswordResetToken(unverifiedUser.getId(), tokenHash, LocalDateTime.now().plusHours(1));
-        resetTokenRepository.save(prt);
-
+    @DisplayName("[2] Password Reset: Public reset is REJECTED with 403 Forbidden")
+    void testPublicPasswordResetRejected() throws Exception {
         ResetPasswordRequest req = new ResetPasswordRequest();
-        req.setToken(rawResetToken);
+        req.setToken("some-raw-token");
         req.setNewPassword("BrandNewSecret2026!");
 
-        // 1st reset: SUCCEEDS
         mockMvc.perform(post("/api/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Public self-service password reset is disabled")));
+    }
+
+    @Test
+    @DisplayName("[3] Admin Password Reset: Super Admin can reset user password")
+    void testAdminPasswordResetAuthorized() throws Exception {
+        // Ensure an admin user exists
+        User adminUser = userRepository.findByEmailIgnoreCase("admin@hospitrack.com").orElseGet(() -> {
+            User a = new User("ADMIN-01", "Super Admin", "admin@hospitrack.com", passwordEncoder.encode("Admin@Hospitrack2026!"), Role.SUPER_ADMIN);
+            return userRepository.save(a);
+        });
+
+        // Generate Super Admin JWT (or use standard login)
+        com.hospitrack.dto.LoginRequest adminLogin = new com.hospitrack.dto.LoginRequest();
+        adminLogin.setEmail("admin@hospitrack.com");
+        adminLogin.setPassword("Admin@Hospitrack2026!");
+
+        String adminRes = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(adminLogin)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String adminToken = objectMapper.readTree(adminRes).path("data").path("accessToken").asText();
+
+        com.hospitrack.dto.AdminResetPasswordRequest resetReq = new com.hospitrack.dto.AdminResetPasswordRequest();
+        resetReq.setUserId(unverifiedUser.getId());
+        resetReq.setNewPassword("NewNursePass2026!");
+
+        mockMvc.perform(post("/api/auth/admin/reset-password")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resetReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
         User updatedUser = userRepository.findById(unverifiedUser.getId()).orElseThrow();
-        assertTrue(passwordEncoder.matches("BrandNewSecret2026!", updatedUser.getPasswordHash()), "New password must match");
-        assertFalse(passwordEncoder.matches("NursePass123!", updatedUser.getPasswordHash()), "Old password must no longer match");
-
-        // 2nd reset with same token (Replay / Reuse): FAILS
-        mockMvc.perform(post("/api/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false));
+        assertTrue(passwordEncoder.matches("NewNursePass2026!", updatedUser.getPasswordHash()), "New password must match");
     }
 }

@@ -38,6 +38,9 @@ public class Doctor {
     @Column(name = "experience_years")
     private Integer experienceYears;
 
+    @Transient
+    private String initialPassword;
+
     public Doctor() {}
 
     public Doctor(String id, String hospitalId, String name, String specialty, String licenseNo, String email, String phone, Integer experienceYears) {
@@ -78,4 +81,7 @@ public class Doctor {
 
     public Integer getExperienceYears() { return experienceYears; }
     public void setExperienceYears(Integer experienceYears) { this.experienceYears = experienceYears; }
+
+    public String getInitialPassword() { return initialPassword; }
+    public void setInitialPassword(String initialPassword) { this.initialPassword = initialPassword; }
 }

@@ -20,10 +20,24 @@ public class PatientRequest {
     private String contact;
 
     private String email;
+
+    @NotBlank(message = "Residential address is required.")
     private String address;
+
     private String emergencyContact;
+    private String emergencyContactName;
+    private String emergencyContactPhone;
+    private String emergencyContactRelation;
+    private String ward;
+    private String bedNumber;
     private String currentHospitalId;
+    @NotBlank(message = "Attending physician assignment is required.")
     private String primaryDoctorId;
+
+    @NotBlank(message = "Initial portal password is required.")
+    private String password;
+
+    private String photoUrl;
 
     public PatientRequest() {}
 
@@ -51,9 +65,33 @@ public class PatientRequest {
     public String getEmergencyContact() { return emergencyContact; }
     public void setEmergencyContact(String emergencyContact) { this.emergencyContact = emergencyContact; }
 
+    public String getEmergencyContactName() { return emergencyContactName; }
+    public void setEmergencyContactName(String emergencyContactName) { this.emergencyContactName = emergencyContactName; }
+
+    public String getEmergencyContactPhone() { return emergencyContactPhone; }
+    public void setEmergencyContactPhone(String emergencyContactPhone) { this.emergencyContactPhone = emergencyContactPhone; }
+
+    public String getEmergencyContactRelation() { return emergencyContactRelation; }
+    public void setEmergencyContactRelation(String emergencyContactRelation) { this.emergencyContactRelation = emergencyContactRelation; }
+
+    public String getWard() { return ward; }
+    public void setWard(String ward) { this.ward = ward; }
+
+    public String getBedNumber() { return bedNumber; }
+    public void setBedNumber(String bedNumber) { this.bedNumber = bedNumber; }
+
     public String getCurrentHospitalId() { return currentHospitalId; }
     public void setCurrentHospitalId(String currentHospitalId) { this.currentHospitalId = currentHospitalId; }
 
     public String getPrimaryDoctorId() { return primaryDoctorId; }
     public void setPrimaryDoctorId(String primaryDoctorId) { this.primaryDoctorId = primaryDoctorId; }
+
+    public String getAssignedDoctorId() { return primaryDoctorId; }
+    public void setAssignedDoctorId(String assignedDoctorId) { this.primaryDoctorId = assignedDoctorId; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
+    public String getPhotoUrl() { return photoUrl; }
+    public void setPhotoUrl(String photoUrl) { this.photoUrl = photoUrl; }
 }

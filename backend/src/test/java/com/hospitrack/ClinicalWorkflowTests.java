@@ -191,4 +191,125 @@ public class ClinicalWorkflowTests {
         Patient transferredPatient = patientRepository.findById("PAT-301").orElseThrow();
         assertEquals("HOSP-103", transferredPatient.getCurrentHospitalId(), "Patient facility must update to destination hospital HOSP-103");
     }
+
+    @Test
+    @DisplayName("[4] Hospital Controlled Patient Onboarding & Doctor Assignment")
+    void testPatientOnboardingAndDoctorAssignment() throws Exception {
+        String tokenHosp = jwtTokenProvider.generateTokenFromUser(hospitalAdminUser);
+
+        String uniqueEmail = "onboarded" + (System.currentTimeMillis() % 10000) + "@test.org";
+
+        com.hospitrack.dto.PatientRequest pReq = new com.hospitrack.dto.PatientRequest();
+        pReq.setName("Onboarded Patient");
+        pReq.setEmail(uniqueEmail);
+        pReq.setGender("Male");
+        pReq.setAge(48);
+        pReq.setBloodGroup("AB+");
+        pReq.setContact("+91 91234 56789");
+        pReq.setAddress("77 Green Avenue");
+        pReq.setEmergencyContact("+91 91234 98765");
+        pReq.setPassword("PatientInit123!");
+        pReq.setPrimaryDoctorId("DOC-201");
+
+        // 1. Hospital Admin onboards patient
+        String resStr = mockMvc.perform(post("/api/patients")
+                        .header("Authorization", "Bearer " + tokenHosp)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(pReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentHospitalId").value("HOSP-101"))
+                .andReturn().getResponse().getContentAsString();
+
+        String createdPatientId = objectMapper.readTree(resStr).path("data").path("id").asText();
+
+        // 2. Hospital Admin assigns Doctor
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/patients/" + createdPatientId + "/assign-doctor")
+                        .header("Authorization", "Bearer " + tokenHosp)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"doctorId\":\"DOC-201\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.primaryDoctorId").value("DOC-201"));
+
+        // 3. Newly provisioned patient can log in
+        com.hospitrack.dto.LoginRequest loginReq = new com.hospitrack.dto.LoginRequest();
+        loginReq.setIdentifier(uniqueEmail);
+        loginReq.setPassword("PatientInit123!");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken").isString())
+                .andExpect(jsonPath("$.data.user.role").value("PATIENT"));
+    }
+
+    @Test
+    @DisplayName("[5] Discharge State Machine: Doctor Approval -> Hospital Clearance Approval -> DISCHARGED")
+    void testDischargeStateMachine() throws Exception {
+        String tokenDoctor = jwtTokenProvider.generateTokenFromUser(doctorUser);
+        String tokenHosp = jwtTokenProvider.generateTokenFromUser(hospitalAdminUser);
+
+        // Doctor requests discharge
+        mockMvc.perform(post("/api/patients/PAT-301/discharge-request")
+                        .header("Authorization", "Bearer " + tokenDoctor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"clinicalSummary\":\"Patient stable, vitals normalized, recovery complete.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DOCTOR_APPROVED"));
+
+        // Hospital Admin reviews clearance and gives final approval
+        mockMvc.perform(post("/api/patients/PAT-301/discharge-clearance")
+                        .header("Authorization", "Bearer " + tokenHosp)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"clearanceNotes\":\"Billing settled, pharmacy medication reconciled, administrative clearance granted.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISCHARGED"));
+
+        Patient discharged = patientRepository.findById("PAT-301").orElseThrow();
+        assertEquals("DISCHARGED", discharged.getStatus());
+    }
+
+    @Test
+    @DisplayName("[6] Cross-Hospital Discharge Isolation: Admin from HOSP-103 attempting to discharge patient from HOSP-102 is DENIED (403 Forbidden)")
+    void testCrossHospitalDischargeDenied() throws Exception {
+        String tokenHosp103 = jwtTokenProvider.generateTokenFromUser(hosp103User);
+
+        // HOSP-103 Admin attempts to discharge PAT-303 (which belongs to HOSP-102)
+        mockMvc.perform(post("/api/patients/PAT-303/discharge-clearance")
+                        .header("Authorization", "Bearer " + tokenHosp103)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"clearanceNotes\":\"Unauthorized cross-facility clearance attempt\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("[7] Role Enforcement: Doctor attempting hospital administrative final discharge is DENIED (403 Forbidden)")
+    void testDoctorCannotPerformHospitalDischargeClearance() throws Exception {
+        String tokenDoctor = jwtTokenProvider.generateTokenFromUser(doctorUser);
+
+        mockMvc.perform(post("/api/patients/PAT-301/discharge-clearance")
+                        .header("Authorization", "Bearer " + tokenDoctor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"clearanceNotes\":\"Doctor administrative bypass attempt\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("[8] Double Discharge Protection: Attempting to discharge an already discharged patient returns 400 Bad Request")
+    void testAlreadyDischargedPatientRejected() throws Exception {
+        String tokenHosp = jwtTokenProvider.generateTokenFromUser(hospitalAdminUser);
+
+        // First ensure PAT-305 is in DISCHARGED status
+        Patient p5 = patientRepository.findById("PAT-305").orElseThrow();
+        p5.setStatus("DISCHARGED");
+        patientRepository.save(p5);
+
+        // Attempt second discharge
+        mockMvc.perform(post("/api/patients/PAT-305/discharge-clearance")
+                        .header("Authorization", "Bearer " + tokenHosp)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"clearanceNotes\":\"Duplicate discharge attempt\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Patient is already marked as discharged."));
+    }
 }

@@ -16,10 +16,16 @@ public class ReferralService {
 
     private final ReferralRepository referralRepository;
     private final AuditService auditService;
+    private final PatientEventStreamService eventStreamService;
 
-    public ReferralService(ReferralRepository referralRepository, AuditService auditService) {
+    public ReferralService(
+            ReferralRepository referralRepository,
+            AuditService auditService,
+            PatientEventStreamService eventStreamService
+    ) {
         this.referralRepository = referralRepository;
         this.auditService = auditService;
+        this.eventStreamService = eventStreamService;
     }
 
     @Transactional(readOnly = true)
@@ -59,23 +65,65 @@ public class ReferralService {
         );
 
         Referral saved = referralRepository.save(referral);
-        auditService.logEvent(actorId, actorRole, actorName, "CREATE_REFERRAL", "REFERRAL", saved.getId(),
+        auditService.logEvent(actorId, actorRole, actorName, "REFERRAL_CREATED", "REFERRAL", saved.getId(),
                 "Created " + saved.getPriority() + " referral for " + saved.getPatientId() + " to " + saved.getToHospitalId() + ": " + saved.getReason());
+
+        if (saved.getPatientId() != null) {
+            eventStreamService.emitPatientEvent(saved.getPatientId(), "REFERRAL_CREATED", saved);
+        }
 
         return saved;
     }
 
     @Transactional
     public Referral updateStatus(String id, String status, String actorId, String actorRole, String actorName) {
+        return updateStatus(id, status, null, null, actorId, actorRole, actorName);
+    }
+
+    @Transactional
+    public Referral updateStatus(String id, String status, String reason, String notes, String actorId, String actorRole, String actorName) {
         Referral referral = referralRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Referral not found: " + id));
 
+        String fromStatus = referral.getStatus();
+        // State transition safety check
+        if (fromStatus != null && !fromStatus.equalsIgnoreCase(status)) {
+            if ("REJECTED".equalsIgnoreCase(fromStatus) || "CANCELLED".equalsIgnoreCase(fromStatus) || "COMPLETED".equalsIgnoreCase(fromStatus)) {
+                if (!"SUPER_ADMIN".equalsIgnoreCase(actorRole)) {
+                    throw new IllegalStateException("Referral " + id + " is in a terminal state (" + fromStatus + ") and cannot be modified.");
+                }
+            }
+        }
+
         referral.setStatus(status);
         referral.setUpdatedAt(LocalDateTime.now());
+
+        // Append reason or notes if provided
+        StringBuilder noteBuilder = new StringBuilder();
+        if (referral.getNotes() != null && !referral.getNotes().trim().isEmpty()) {
+            noteBuilder.append(referral.getNotes().trim());
+        }
+        if (reason != null && !reason.trim().isEmpty()) {
+            if (noteBuilder.length() > 0) noteBuilder.append("\n");
+            noteBuilder.append("[").append(LocalDateTime.now()).append(" | ").append(actorName).append(" (").append(actorRole).append(")]: Rationale: ").append(reason.trim());
+        }
+        if (notes != null && !notes.trim().isEmpty()) {
+            if (noteBuilder.length() > 0) noteBuilder.append("\n");
+            noteBuilder.append("[").append(LocalDateTime.now()).append(" | ").append(actorName).append(" (").append(actorRole).append(")]: Notes: ").append(notes.trim());
+        }
+        if (noteBuilder.length() > 0) {
+            referral.setNotes(noteBuilder.toString());
+        }
+
         Referral saved = referralRepository.save(referral);
 
-        auditService.logEvent(actorId, actorRole, actorName, "UPDATE_REFERRAL_STATUS", "REFERRAL", saved.getId(),
-                "Updated referral status to " + status);
+        String eventName = "ACCEPTED".equalsIgnoreCase(status) ? "REFERRAL_ACCEPTED" : ("REJECTED".equalsIgnoreCase(status) ? "REFERRAL_DECLINED" : "UPDATE_REFERRAL_STATUS");
+        auditService.logEvent(actorId, actorRole, actorName, eventName, "REFERRAL", saved.getId(),
+                "Updated referral status from " + fromStatus + " to " + status + (reason != null ? " (Rationale: " + reason + ")" : ""));
+
+        if (saved.getPatientId() != null) {
+            eventStreamService.emitPatientEvent(saved.getPatientId(), "REFERRAL_STATUS_UPDATED", saved);
+        }
 
         return saved;
     }

@@ -112,6 +112,22 @@ const server = http.createServer((req, res) => {
   });
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please free port ${PORT} or set PORT environment variable.`);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
 server.listen(PORT, () => {
   console.log('====================================================');
   console.log('  HOSPITRACK HEALTHCARE PLATFORM LIVE');

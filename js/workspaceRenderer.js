@@ -167,6 +167,12 @@
           `;
         } else if (currentRole === 'HOSPITAL_ADMIN' || currentRole === 'SUPER_ADMIN') {
           actionsHtml = `
+            <button type="button" class="btn btn-primary btn-sm" onclick="openEditPatientModal('${patient.id}')">
+              <span>✏️</span> Edit Profile
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openChangePatientPhotoModal('${patient.id}')">
+              <span>📷</span> Manage Photo
+            </button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="openCreateReferralModal('${patient.id}')">
               <span>🔁</span> New Referral
             </button>
@@ -221,7 +227,7 @@
                 <div class="workspace-stat-card">
                   <div class="stat-label">Patient Record ID</div>
                   <div class="stat-value text-primary font-mono">${escapeHtml(patient.id)}</div>
-                  <div class="stat-sub">Authoritative PostgreSQL Record</div>
+                  <div class="stat-sub">Authoritative Clinical Record</div>
                 </div>
                 <div class="workspace-stat-card">
                   <div class="stat-label">Demographics</div>
@@ -313,13 +319,53 @@
 
         // TAB 2: PROFILE & DEMOGRAPHICS
         else if (currentTab === 'profile') {
+          const isHospitalOrSuperAdmin = currentRole === 'HOSPITAL_ADMIN' || currentRole === 'SUPER_ADMIN';
           tabContentHtml = `
             <div class="workspace-section">
               <div class="workspace-card">
                 <div class="card-header-clean">
                   <div>
                     <h3 class="card-title">Patient Profile &amp; Demographics</h3>
-                    <p class="card-subtitle">Verified identity, residential information, and hospital allocation</p>
+                    <p class="card-subtitle">Verified clinical identity, residential information, and facility allocation</p>
+                  </div>
+                  ${isHospitalOrSuperAdmin ? `
+                    <div class="d-flex gap-8">
+                      <button type="button" class="btn btn-primary btn-sm" onclick="openEditPatientModal('${patient.id}')">
+                        ✏️ Edit Profile
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="openChangePatientPhotoModal('${patient.id}')">
+                        📷 Photo
+                      </button>
+                    </div>
+                  ` : `
+                    <span class="badge badge-active">✓ Hospital Verified Profile</span>
+                  `}
+                </div>
+
+                <!-- Patient Photo & Official Verification Banner -->
+                <div class="p-16 bg-surface-alt radius-md mt-16 border-subtle d-flex align-center gap-16" style="flex-wrap: wrap;">
+                  <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--bg-surface); border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; font-size: 2rem; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                    ${patient.photoUrl ? `
+                      <img src="${escapeHtml(patient.photoUrl)}" alt="${escapeHtml(patient.name)}" style="width: 100%; height: 100%; object-fit: cover;">
+                    ` : `
+                      <span>👤</span>
+                    `}
+                  </div>
+                  <div style="flex: 1; min-width: 240px;">
+                    <div class="d-flex align-center gap-8">
+                      <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">${escapeHtml(patient.name)}</h4>
+                      <span class="badge badge-active">✓ Hospital Verified Profile</span>
+                    </div>
+                    <div class="text-secondary font-xs mt-4">
+                      Official Record ID: <code class="font-mono text-primary font-semibold">${escapeHtml(patient.id)}</code> • Admitted Facility: <strong>${escapeHtml(hospital.name)}</strong>
+                    </div>
+                    <div class="text-muted font-xs mt-4">
+                      ${isHospitalOrSuperAdmin ? `
+                        Hospital Admin owns and maintains this official patient clinical profile.
+                      ` : `
+                        Your clinical profile is maintained by your hospital. Contact your hospital if any information needs to be corrected.
+                      `}
+                    </div>
                   </div>
                 </div>
 
@@ -352,7 +398,7 @@
                   </div>
                   <div class="profile-field-box">
                     <div class="profile-field-label">Contact Phone</div>
-                    <div class="profile-field-value">${escapeHtml(patient.contact || 'Not available')}</div>
+                    <div class="profile-field-value">${escapeHtml(patient.contact || patient.phone || 'Not available')}</div>
                   </div>
                   <div class="profile-field-box">
                     <div class="profile-field-label">Email Address</div>
@@ -459,6 +505,7 @@
                           <th>Facility</th>
                           <th>Diagnosis</th>
                           <th>Treatment &amp; Notes</th>
+                          <th style="text-align: right;">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -472,6 +519,14 @@
                             <td class="font-sm text-secondary">
                               <div>${escapeHtml(v.treatment || '')}</div>
                               <small class="text-muted">${escapeHtml(v.notes || '')}</small>
+                            </td>
+                            <td style="text-align: right; white-space: nowrap;">
+                              <button type="button" class="btn btn-secondary btn-sm" onclick="window.showConsultationDetailModal('${escapeHtml(v.id)}')" title="View full consultation notes &amp; vitals">
+                                <span>🩺</span> View
+                              </button>
+                              <button type="button" class="btn btn-secondary btn-sm" onclick="window.hospitrackPrintDocument('CONSULTATION', '${escapeHtml(v.id)}')" title="Print consultation encounter">
+                                <span>🖨️</span> Print
+                              </button>
                             </td>
                           </tr>
                         `).join('')}
@@ -807,10 +862,21 @@
                   <span class="font-mono text-muted">${escapeHtml(patient.id)}</span>
                 </div>
                 <div class="d-flex align-center gap-12 mt-8">
-                  <h1 class="workspace-title">${escapeHtml(patient.name)}</h1>
-                  <span class="badge ${getStatusBadgeClass(patient.status)}">${escapeHtml(patient.status || 'ACTIVE')}</span>
-                  <span class="badge badge-info">${patient.age ? `${patient.age} yrs` : ''} ${escapeHtml(patient.gender || '')}</span>
-                  <span class="badge badge-active">${escapeHtml(patient.bloodGroup || 'Blood Group N/A')}</span>
+                  ${patient.photoUrl ? `
+                    <img src="${escapeHtml(patient.photoUrl)}" alt="${escapeHtml(patient.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); flex-shrink: 0;">
+                  ` : `
+                    <div class="avatar" style="width: 44px; height: 44px; border-radius: 50%; font-size: 1.2rem; background: var(--bg-surface-alt); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                      👤
+                    </div>
+                  `}
+                  <div>
+                    <h1 class="workspace-title">${escapeHtml(patient.name)}</h1>
+                    <div class="d-flex align-center gap-8 mt-4" style="flex-wrap: wrap;">
+                      <span class="badge ${getStatusBadgeClass(patient.status)}">${escapeHtml(patient.status || 'ACTIVE')}</span>
+                      <span class="badge badge-info">${patient.age ? `${patient.age} yrs` : ''} ${escapeHtml(patient.gender || '')}</span>
+                      <span class="badge badge-active">${escapeHtml(patient.bloodGroup || 'Blood Group N/A')}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="workspace-header-actions">

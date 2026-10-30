@@ -41,41 +41,52 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserDto>> register(@Valid @RequestBody RegisterRequest request) {
-        if (request.getRole() == com.hospitrack.entity.Role.SUPER_ADMIN) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Registration for SUPER_ADMIN role is strictly prohibited."));
-        }
-        ApiResponse<UserDto> response = authService.register(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<UserDto>> register(@RequestBody RegisterRequest request) {
+        return ResponseEntity.status(403).body(ApiResponse.error("Public self-registration is disabled. Healthcare accounts must be provisioned by authorized Hospital Administrators or Super Administrators."));
     }
 
     @PostMapping("/register/patient")
-    public ResponseEntity<ApiResponse<UserDto>> registerPatient(@Valid @RequestBody RegisterRequest request) {
-        ApiResponse<UserDto> response = authService.registerPatient(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<UserDto>> registerPatient(@RequestBody RegisterRequest request) {
+        return ResponseEntity.status(403).body(ApiResponse.error("Public self-registration is disabled. Patient accounts are created during hospital admission and verified by hospital staff."));
     }
 
     @PostMapping("/register/hospital")
-    public ResponseEntity<ApiResponse<UserDto>> registerHospital(@Valid @RequestBody RegisterRequest request) {
-        ApiResponse<UserDto> response = authService.registerHospital(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<UserDto>> registerHospital(@RequestBody RegisterRequest request) {
+        return ResponseEntity.status(403).body(ApiResponse.error("Public hospital self-registration is disabled. New healthcare facilities must be onboarded by the Super Administrator."));
+    }
+
+    @PostMapping("/register/doctor")
+    public ResponseEntity<ApiResponse<UserDto>> registerDoctor(@RequestBody RegisterRequest request) {
+        return ResponseEntity.status(403).body(ApiResponse.error("Public doctor self-registration is disabled. Doctors must be provisioned and assigned by their Hospital Administrator."));
     }
 
     @PostMapping("/verify-email")
-    public ResponseEntity<ApiResponse<String>> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
-        ApiResponse<String> response = authService.verifyEmail(request.getToken());
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<String>> verifyEmail(@RequestBody VerifyEmailRequest request) {
+        return ResponseEntity.status(403).body(ApiResponse.error("Email verification is managed by hospital administrators."));
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        ApiResponse<String> response = authService.forgotPassword(request.getEmail());
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        return ResponseEntity.status(403).body(ApiResponse.error("Public self-service password recovery is disabled. Please contact your Hospital Administrator or Super Administrator for authorized password recovery."));
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        ApiResponse<String> response = authService.resetPassword(request);
+    public ResponseEntity<ApiResponse<String>> resetPassword(@RequestBody ResetPasswordRequest request) {
+        return ResponseEntity.status(403).body(ApiResponse.error("Public self-service password reset is disabled. Please contact your Hospital Administrator or Super Administrator for authorized credential recovery."));
+    }
+
+    @PostMapping("/admin/reset-password")
+    public ResponseEntity<ApiResponse<String>> adminResetPassword(
+            @Valid @RequestBody AdminResetPasswordRequest request,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(ApiResponse.error("Unauthenticated."));
+        }
+        if (principal.getRole() != com.hospitrack.entity.Role.SUPER_ADMIN && principal.getRole() != com.hospitrack.entity.Role.HOSPITAL_ADMIN) {
+            return ResponseEntity.status(403).body(ApiResponse.error("Access denied: Only Super Administrators and Hospital Administrators can perform administrative password resets."));
+        }
+        ApiResponse<String> response = authService.adminResetPassword(request, principal);
         return ResponseEntity.ok(response);
     }
 
@@ -114,6 +125,9 @@ public class AuthController {
         if (principal == null) {
             return ResponseEntity.status(401).body(ApiResponse.error("Unauthenticated."));
         }
+        if (principal.getRole() == com.hospitrack.entity.Role.PATIENT) {
+            return ResponseEntity.status(403).body(ApiResponse.error("Patient profile photo is managed by your hospital administration."));
+        }
         ApiResponse<UserDto> response = authService.updateProfilePhoto(principal.getId(), request.getPhoto());
         return ResponseEntity.ok(response);
     }
@@ -124,6 +138,9 @@ public class AuthController {
     ) {
         if (principal == null) {
             return ResponseEntity.status(401).body(ApiResponse.error("Unauthenticated."));
+        }
+        if (principal.getRole() == com.hospitrack.entity.Role.PATIENT) {
+            return ResponseEntity.status(403).body(ApiResponse.error("Patient profile photo is managed by your hospital administration."));
         }
         ApiResponse<UserDto> response = authService.removeProfilePhoto(principal.getId());
         return ResponseEntity.ok(response);
@@ -136,6 +153,9 @@ public class AuthController {
     ) {
         if (principal == null) {
             return ResponseEntity.status(401).body(ApiResponse.error("Unauthenticated."));
+        }
+        if (principal.getRole() == com.hospitrack.entity.Role.DOCTOR || principal.getRole() == com.hospitrack.entity.Role.PATIENT) {
+            return ResponseEntity.status(403).body(ApiResponse.error("Credential Governance Policy: Doctor and Patient self-service password changes are disabled. Please contact your Hospital Administrator."));
         }
         ApiResponse<String> response = authService.changePassword(principal.getId(), request);
         return ResponseEntity.ok(response);

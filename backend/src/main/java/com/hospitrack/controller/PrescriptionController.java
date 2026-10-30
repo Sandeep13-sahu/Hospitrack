@@ -53,4 +53,13 @@ public class PrescriptionController {
         Prescription created = prescriptionService.createPrescription(request, principal.getId(), principal.getRole().name(), principal.getName());
         return ResponseEntity.ok(ApiResponse.success("Prescription order signed successfully.", created));
     }
+
+    @PostMapping("/safety-check")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('DOCTOR') or hasRole('HOSPITAL_ADMIN')")
+    public ResponseEntity<ApiResponse<com.hospitrack.dto.ClinicalSafetyReportDto>> evaluateSafety(
+            @Valid @RequestBody PrescriptionRequest request
+    ) {
+        com.hospitrack.dto.ClinicalSafetyReportDto report = prescriptionService.evaluateSafety(request);
+        return ResponseEntity.ok(ApiResponse.success("Clinical safety evaluation completed.", report));
+    }
 }

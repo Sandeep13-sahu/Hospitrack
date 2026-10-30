@@ -39,6 +39,21 @@ public class Patient {
     @Column(name = "emergency_contact", length = 255)
     private String emergencyContact;
 
+    @Column(name = "emergency_contact_name", length = 128)
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone", length = 64)
+    private String emergencyContactPhone;
+
+    @Column(name = "emergency_contact_relation", length = 64)
+    private String emergencyContactRelation;
+
+    @Column(name = "ward", length = 128)
+    private String ward;
+
+    @Column(name = "bed_number", length = 64)
+    private String bedNumber;
+
     @Column(name = "current_hospital_id", nullable = false, length = 64)
     private String currentHospitalId;
 
@@ -48,11 +63,17 @@ public class Patient {
     @Column(name = "status", nullable = false, length = 32)
     private String status = "CHECKED_IN"; // CHECKED_IN, DISCHARGED, TRANSFER_PENDING, TRANSFERRED
 
+    @Column(name = "photo_url", columnDefinition = "TEXT")
+    private String photoUrl;
+
     @Column(name = "admitted_at", nullable = false)
     private LocalDateTime admittedAt = LocalDateTime.now();
 
     @Column(name = "discharged_at")
     private LocalDateTime dischargedAt;
+
+    @jakarta.persistence.Transient
+    private String initialPassword;
 
     public Patient() {}
 
@@ -65,7 +86,7 @@ public class Patient {
         this.contact = contact;
         this.email = email != null ? email.toLowerCase().trim() : null;
         this.address = address;
-        this.emergencyContact = emergencyContact;
+        this.setEmergencyContact(emergencyContact);
         this.currentHospitalId = currentHospitalId;
         this.primaryDoctorId = primaryDoctorId;
         this.status = "CHECKED_IN";
@@ -93,11 +114,62 @@ public class Patient {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email != null ? email.toLowerCase().trim() : null; }
 
-    public String getAddress() { return address; }
+    public String getAddress() { return address != null && !address.isBlank() ? address : "Address not provided"; }
     public void setAddress(String address) { this.address = address; }
 
-    public String getEmergencyContact() { return emergencyContact; }
-    public void setEmergencyContact(String emergencyContact) { this.emergencyContact = emergencyContact; }
+    public String getEmergencyContact() {
+        if (emergencyContact != null && !emergencyContact.isBlank()) {
+            return emergencyContact;
+        }
+        if (emergencyContactName != null || emergencyContactPhone != null) {
+            String n = emergencyContactName != null ? emergencyContactName : "Emergency Contact";
+            String r = emergencyContactRelation != null ? " (" + emergencyContactRelation + ")" : "";
+            String p = emergencyContactPhone != null ? " - " + emergencyContactPhone : "";
+            return n + r + p;
+        }
+        return null;
+    }
+
+    public void setEmergencyContact(String emergencyContact) {
+        this.emergencyContact = emergencyContact;
+        if (emergencyContact != null && (emergencyContactName == null || emergencyContactName.isBlank())) {
+            // Attempt smart parse for legacy strings: "+91 98111 99991 (Jane Doe - Spouse)" or "Jane Doe (Spouse) - 98111"
+            try {
+                if (emergencyContact.contains("(") && emergencyContact.contains(")")) {
+                    int start = emergencyContact.indexOf('(');
+                    int end = emergencyContact.indexOf(')');
+                    String inside = emergencyContact.substring(start + 1, end).trim();
+                    String outside = (emergencyContact.substring(0, start) + emergencyContact.substring(end + 1)).trim();
+                    if (inside.contains("-")) {
+                        String[] parts = inside.split("-", 2);
+                        this.emergencyContactName = parts[0].trim();
+                        this.emergencyContactRelation = parts[1].trim();
+                        this.emergencyContactPhone = outside.replace("-", "").trim();
+                    } else {
+                        this.emergencyContactRelation = inside;
+                        this.emergencyContactName = outside;
+                    }
+                } else {
+                    this.emergencyContactName = emergencyContact;
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    public String getEmergencyContactName() { return emergencyContactName; }
+    public void setEmergencyContactName(String emergencyContactName) { this.emergencyContactName = emergencyContactName; }
+
+    public String getEmergencyContactPhone() { return emergencyContactPhone; }
+    public void setEmergencyContactPhone(String emergencyContactPhone) { this.emergencyContactPhone = emergencyContactPhone; }
+
+    public String getEmergencyContactRelation() { return emergencyContactRelation; }
+    public void setEmergencyContactRelation(String emergencyContactRelation) { this.emergencyContactRelation = emergencyContactRelation; }
+
+    public String getWard() { return ward; }
+    public void setWard(String ward) { this.ward = ward; }
+
+    public String getBedNumber() { return bedNumber; }
+    public void setBedNumber(String bedNumber) { this.bedNumber = bedNumber; }
 
     public String getCurrentHospitalId() { return currentHospitalId; }
     public void setCurrentHospitalId(String currentHospitalId) { this.currentHospitalId = currentHospitalId; }
@@ -113,4 +185,10 @@ public class Patient {
 
     public LocalDateTime getDischargedAt() { return dischargedAt; }
     public void setDischargedAt(LocalDateTime dischargedAt) { this.dischargedAt = dischargedAt; }
+
+    public String getPhotoUrl() { return photoUrl; }
+    public void setPhotoUrl(String photoUrl) { this.photoUrl = photoUrl; }
+
+    public String getInitialPassword() { return initialPassword; }
+    public void setInitialPassword(String initialPassword) { this.initialPassword = initialPassword; }
 }

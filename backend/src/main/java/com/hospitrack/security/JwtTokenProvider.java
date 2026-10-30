@@ -54,8 +54,8 @@ public class JwtTokenProvider {
         claims.put("status", userPrincipal.getStatus().name());
 
         return Jwts.builder()
-                .subject(userPrincipal.getId())
                 .claims(claims)
+                .subject(userPrincipal.getId())
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key)
@@ -75,8 +75,8 @@ public class JwtTokenProvider {
         claims.put("status", user.getStatus().name());
 
         return Jwts.builder()
-                .subject(user.getId())
                 .claims(claims)
+                .subject(user.getId())
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key)

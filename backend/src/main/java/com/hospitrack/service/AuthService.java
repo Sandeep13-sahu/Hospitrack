@@ -23,6 +23,7 @@ import java.util.Base64;
 import java.util.Optional;
 
 @Service
+@SuppressWarnings("null")
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -36,6 +37,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final BrevoEmailService emailService;
     private final AuditService auditService;
+    private final UserLookupService userLookupService;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -50,7 +52,8 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             BrevoEmailService emailService,
-            AuditService auditService
+            AuditService auditService,
+            UserLookupService userLookupService
     ) {
         this.userRepository = userRepository;
         this.hospitalRepository = hospitalRepository;
@@ -63,19 +66,22 @@ public class AuthService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailService = emailService;
         this.auditService = auditService;
+        this.userLookupService = userLookupService;
     }
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        String identifier = request.getIdentifier() != null ? request.getIdentifier().toLowerCase().trim() : "";
-        User user = userRepository.findByEmailIgnoreCase(identifier)
-                .orElseGet(() -> userRepository.findById(identifier)
-                        .orElseThrow(() -> {
-                            auditService.logEvent("ANONYMOUS", "GUEST", "Anonymous", "LOGIN_FAILURE", "USER", identifier, "Failed login attempt: Unknown identifier " + identifier);
-                            return new BadCredentialsException("Invalid email or password.");
-                        }));
+        String identifier = request.getIdentifier() != null ? request.getIdentifier().trim() : "";
+        User user = userLookupService.findByIdentifier(identifier)
+                .orElseThrow(() -> {
+                    auditService.logEvent("ANONYMOUS", "GUEST", "Anonymous", "LOGIN_FAILURE", "USER", identifier, "Failed login attempt: Unknown identifier " + identifier);
+                    return new BadCredentialsException("Invalid email or password.");
+                });
 
         boolean matches = passwordEncoder.matches(request.getPassword(), user.getPasswordHash());
+        if (!matches && request.getPassword() != null) {
+            matches = passwordEncoder.matches(request.getPassword().trim(), user.getPasswordHash());
+        }
         if (!matches) {
             String raw = request.getPassword() != null ? request.getPassword().trim() : "";
             if (("admin123".equals(raw) || "Admin@Hospitrack2026!".equals(raw)) && user.getRole() == Role.SUPER_ADMIN) {
@@ -104,6 +110,22 @@ public class AuthService {
 
         if (user.getStatus() == AccountStatus.DISABLED) {
             throw new DisabledException("Your account is currently unavailable.");
+        }
+
+        // Validate facility operational status for hospital-associated accounts
+        if (user.getHospitalId() != null && !user.getHospitalId().isBlank() && user.getRole() != Role.SUPER_ADMIN) {
+            Optional<Hospital> hospOpt = hospitalRepository.findById(user.getHospitalId());
+            if (hospOpt.isPresent()) {
+                Hospital hosp = hospOpt.get();
+                String hStatus = hosp.getStatus() != null ? hosp.getStatus().toUpperCase() : "ACTIVE";
+                if ("PENDING_APPROVAL".equals(hStatus)) {
+                    throw new LockedException("Your hospital account is awaiting administrator approval.");
+                } else if ("SUSPENDED".equals(hStatus)) {
+                    throw new LockedException("Your hospital account is currently suspended. Contact your administrator.");
+                } else if ("DEACTIVATED".equals(hStatus) || "DISABLED".equals(hStatus)) {
+                    throw new DisabledException("Your hospital facility is currently deactivated.");
+                }
+            }
         }
 
         user.setLastLoginAt(LocalDateTime.now());
@@ -436,6 +458,11 @@ public class AuthService {
         User user = userRepository.findById(userId.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
+        if (user.getRole() == Role.DOCTOR || user.getRole() == Role.PATIENT) {
+            auditService.logEvent(user.getId(), user.getRole().name(), user.getName(), "PASSWORD_CHANGE_BLOCKED", "USER", user.getId(), "Blocked self-service password change under Credential Governance Policy.");
+            throw new org.springframework.security.access.AccessDeniedException("Credential Governance Policy: Doctor and Patient self-service password changes are disabled. Contact your Hospital Administrator.");
+        }
+
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
             auditService.logEvent(user.getId(), user.getRole().name(), user.getName(), "PASSWORD_CHANGE_FAILURE", "USER", user.getId(), "Failed password change: Incorrect current password.");
             throw new BadRequestException("Current password does not match.");
@@ -457,7 +484,10 @@ public class AuthService {
         User user = userRepository.findById(userId.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
-        if (request.getName() != null && !request.getName().trim().isEmpty()) {
+        boolean isPatient = user.getRole() == Role.PATIENT;
+
+        // Clinical identity (name) cannot be updated directly by patient user
+        if (!isPatient && request.getName() != null && !request.getName().trim().isEmpty()) {
             user.setName(request.getName().trim());
         }
         if (request.getPhone() != null) {
@@ -470,7 +500,7 @@ public class AuthService {
             }
             user.setEmail(newEmail);
         }
-        if (request.getAvatarUrl() != null) {
+        if (!isPatient && request.getAvatarUrl() != null) {
             user.setAvatarUrl(request.getAvatarUrl());
         }
 
@@ -478,9 +508,8 @@ public class AuthService {
         userRepository.save(user);
 
         // Synchronize with Patient / Doctor if applicable
-        if (user.getRole() == Role.PATIENT && user.getPatientId() != null) {
+        if (isPatient && user.getPatientId() != null) {
             patientRepository.findById(user.getPatientId()).ifPresent(p -> {
-                p.setName(user.getName());
                 p.setContact(user.getPhone());
                 p.setEmail(user.getEmail());
                 patientRepository.save(p);
@@ -500,12 +529,50 @@ public class AuthService {
     }
 
     @Transactional
+    public ApiResponse<String> adminResetPassword(AdminResetPasswordRequest request, com.hospitrack.security.UserPrincipal principal) {
+        if (principal == null) {
+            throw new org.springframework.security.access.AccessDeniedException("Unauthenticated.");
+        }
+        if (principal.getRole() != Role.SUPER_ADMIN && principal.getRole() != Role.HOSPITAL_ADMIN) {
+            throw new org.springframework.security.access.AccessDeniedException("Unauthorized: Only Super Administrators and Hospital Administrators can perform administrative credential resets.");
+        }
+        User targetUser = userRepository.findById(request.getUserId().trim())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + request.getUserId()));
+
+        if (principal.getRole() == Role.HOSPITAL_ADMIN) {
+            if (principal.getHospitalId() == null || !principal.getHospitalId().equalsIgnoreCase(targetUser.getHospitalId())) {
+                throw new org.springframework.security.access.AccessDeniedException("Hospital administrator is not authorized to reset credentials for users outside their hospital facility.");
+            }
+            if (targetUser.getRole() == Role.SUPER_ADMIN) {
+                throw new org.springframework.security.access.AccessDeniedException("Hospital administrator cannot reset Super Administrator credentials.");
+            }
+        }
+
+        targetUser.setPasswordHash(passwordEncoder.encode(request.getNewPassword().trim()));
+        targetUser.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(targetUser);
+
+        // Revoke existing refresh tokens
+        refreshTokenRepository.deleteByUserId(targetUser.getId());
+
+        auditService.logEvent(principal.getId(), principal.getRole().name(), principal.getName(),
+                "PASSWORD_RESET_INITIATED", "USER", targetUser.getId(),
+                "Password reset for user " + targetUser.getEmail() + " (" + targetUser.getRole() + ") by " + principal.getName());
+
+        return ApiResponse.success("Password reset successfully for user " + targetUser.getName() + ".");
+    }
+
+    @Transactional
     public ApiResponse<UserDto> updateProfilePhoto(String userId, String photoData) {
         if (userId == null || userId.trim().isEmpty()) {
             throw new ResourceNotFoundException("User ID is required.");
         }
         User user = userRepository.findById(userId.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+
+        if (user.getRole() == Role.PATIENT) {
+            throw new org.springframework.security.access.AccessDeniedException("Patient profile photo is managed by your hospital administration.");
+        }
 
         if (photoData != null && photoData.length() > 3 * 1024 * 1024) {
             throw new BadRequestException("Profile photo must not exceed 2MB in size.");
@@ -527,6 +594,10 @@ public class AuthService {
         }
         User user = userRepository.findById(userId.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+
+        if (user.getRole() == Role.PATIENT) {
+            throw new org.springframework.security.access.AccessDeniedException("Patient profile photo is managed by your hospital administration.");
+        }
 
         user.setAvatarUrl(null);
         user.setUpdatedAt(LocalDateTime.now());

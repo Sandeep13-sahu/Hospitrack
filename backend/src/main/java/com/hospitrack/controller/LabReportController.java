@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/labs")
@@ -24,10 +25,16 @@ public class LabReportController {
 
     private final LabReportRepository labReportRepository;
     private final AuditService auditService;
+    private final com.hospitrack.service.PatientEventStreamService eventStreamService;
 
-    public LabReportController(LabReportRepository labReportRepository, AuditService auditService) {
+    public LabReportController(
+            LabReportRepository labReportRepository,
+            AuditService auditService,
+            com.hospitrack.service.PatientEventStreamService eventStreamService
+    ) {
         this.labReportRepository = labReportRepository;
         this.auditService = auditService;
+        this.eventStreamService = eventStreamService;
     }
 
     @GetMapping
@@ -38,8 +45,11 @@ public class LabReportController {
             @AuthenticationPrincipal UserPrincipal principal
     ) {
         List<LabReport> reports;
-        if (principal.getRole() == Role.PATIENT && principal.getPatientId() != null) {
-            reports = labReportRepository.findByPatientIdOrderByReportDateDesc(principal.getPatientId());
+        if (principal.getRole() == Role.PATIENT) {
+            String pId = principal.getPatientId();
+            reports = (pId != null && !pId.isBlank())
+                    ? labReportRepository.findByPatientIdOrderByReportDateDesc(pId)
+                    : List.of();
         } else if (patientId != null && !patientId.isEmpty()) {
             reports = labReportRepository.findByPatientIdOrderByReportDateDesc(patientId);
         } else if (doctorId != null && !doctorId.isEmpty()) {
@@ -59,7 +69,7 @@ public class LabReportController {
     @GetMapping("/{id}")
     @PreAuthorize("@dataGuard.canAccessLabReport(#id)")
     public ResponseEntity<ApiResponse<LabReport>> getLabReportById(@PathVariable String id) {
-        LabReport report = labReportRepository.findById(id)
+        LabReport report = labReportRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Lab report not found with id: " + id));
         return ResponseEntity.ok(ApiResponse.success("Lab report retrieved.", report));
     }
@@ -101,11 +111,15 @@ public class LabReportController {
                 status
         );
 
-        LabReport saved = labReportRepository.save(report);
+        LabReport saved = labReportRepository.save(Objects.requireNonNull(report));
 
         auditService.logEvent(principal.getId(), principal.getRole().name(), principal.getName(),
-                "CREATE_LAB_ORDER", "LAB_REPORT", saved.getId(),
+                "LAB_ORDER_CREATED", "LAB_REPORT", saved.getId(),
                 "Ordered lab diagnostic test '" + saved.getTestName() + "' for patient " + saved.getPatientId());
+
+        if (saved.getPatientId() != null) {
+            eventStreamService.emitPatientEvent(saved.getPatientId(), "LAB_REPORT_ORDERED", saved);
+        }
 
         return ResponseEntity.ok(ApiResponse.success("Lab test ordered successfully.", saved));
     }
@@ -117,7 +131,7 @@ public class LabReportController {
             @RequestBody Map<String, String> body,
             @AuthenticationPrincipal UserPrincipal principal
     ) {
-        LabReport report = labReportRepository.findById(id)
+        LabReport report = labReportRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Lab report not found with id: " + id));
 
         String newStatus = body.get("status");
@@ -130,11 +144,15 @@ public class LabReportController {
             report.setResultSummary(resultSummary);
         }
 
-        LabReport updated = labReportRepository.save(report);
+        LabReport updated = labReportRepository.save(Objects.requireNonNull(report));
 
         auditService.logEvent(principal.getId(), principal.getRole().name(), principal.getName(),
-                "UPDATE_LAB_STATUS", "LAB_REPORT", updated.getId(),
-                "Updated lab report " + updated.getId() + " status to " + updated.getStatus());
+                "LAB_RESULT_REVIEWED", "LAB_REPORT", updated.getId(),
+                "Updated and certified lab report " + updated.getId() + " status to " + updated.getStatus());
+
+        if (updated.getPatientId() != null) {
+            eventStreamService.emitPatientEvent(updated.getPatientId(), "LAB_REPORT_UPDATED", updated);
+        }
 
         return ResponseEntity.ok(ApiResponse.success("Lab report status updated.", updated));
     }

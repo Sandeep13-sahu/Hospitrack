@@ -2,6 +2,7 @@ package com.hospitrack.security;
 
 import com.hospitrack.entity.User;
 import com.hospitrack.repository.UserRepository;
+import com.hospitrack.service.UserLookupService;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -12,19 +13,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final UserLookupService userLookupService;
 
-    public CustomUserDetailsService(UserRepository userRepository) {
+    public CustomUserDetailsService(UserRepository userRepository, UserLookupService userLookupService) {
         this.userRepository = userRepository;
+        this.userLookupService = userLookupService;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        if (email == null || email.trim().isEmpty()) {
-            throw new UsernameNotFoundException("Email cannot be empty");
+    public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            throw new UsernameNotFoundException("Identifier cannot be empty");
         }
-        User user = userRepository.findByEmailIgnoreCase(email.trim())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+        String idClean = identifier.trim();
+        User user = userLookupService.findByIdentifier(idClean)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with identifier: " + identifier));
         return UserPrincipal.create(user);
     }
 

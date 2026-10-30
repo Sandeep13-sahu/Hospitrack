@@ -145,7 +145,7 @@ async function run() {
   const adminOverview = await get('/api/admin/overview', adminToken);
   console.log('[7/10] Super Admin Access to Admin Overview (200):', adminOverview.status === 200 ? 'PASS' : 'FAIL', 'Total Hospitals:', adminOverview.data.data?.totalHospitals);
 
-  // 8. Public Registration for Patient
+  // 8. Public Registration for Patient (Must be blocked with 403 Forbidden)
   const regPatient = await post('/api/auth/register', {
     name: 'Priya Sharma',
     email: `priya.${Date.now()}@example.com`,
@@ -157,7 +157,7 @@ async function run() {
     phone: '+91 99887 76655',
     emergencyContact: '+91 99887 00000'
   });
-  console.log('[8/10] Public Patient Registration:', regPatient.data.success ? 'PASS' : 'FAIL', 'Created ID:', regPatient.data.data?.patientId);
+  console.log('[8/10] Public Patient Registration Blocked (403/400):', (regPatient.status === 403 || regPatient.status === 400) ? 'PASS' : 'FAIL');
 
   // 9. SUPER_ADMIN Public Registration Attempt MUST BE BLOCKED
   const regAdminAttempt = await post('/api/auth/register', {
@@ -166,7 +166,7 @@ async function run() {
     password: 'Hacker@123!',
     role: 'SUPER_ADMIN'
   });
-  console.log('[9/10] Public SUPER_ADMIN Registration Blocked:', regAdminAttempt.status === 400 ? 'PASS' : 'FAIL');
+  console.log('[9/10] Public SUPER_ADMIN Registration Blocked:', (regAdminAttempt.status === 403 || regAdminAttempt.status === 400) ? 'PASS' : 'FAIL');
 
   // 10. Duplicate Medicine Safety Rule on Backend
   const dupRx = await post('/api/prescriptions', {

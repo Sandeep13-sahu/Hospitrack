@@ -170,9 +170,8 @@ async function runTests() {
     assert.strictEqual(res.json.message, 'Invalid email or password.');
   });
 
-  // 9. Register a new patient account
-  const testPatientEmail = `testpatient_${Date.now()}@example.com`;
-  await test('9. Register new patient account via /api/auth/register/patient', async () => {
+  // 9. Reject public self-registration with 403 Forbidden
+  await test('9. Public patient registration via /api/auth/register/patient is rejected with 403 Forbidden', async () => {
     const res = await request({
       hostname: 'localhost',
       port: 8080,
@@ -182,69 +181,78 @@ async function runTests() {
         'Content-Type': 'application/json'
       }
     }, {
-      name: 'Aarav Sharma',
-      username: `aarav_${Date.now()}`,
-      email: testPatientEmail,
-      phone: '+91 98765 43210',
-      password: 'PatientPass123!',
-      age: 28,
-      gender: 'Male',
-      bloodGroup: 'B+',
-      address: '123 Test Street, New Delhi',
-      emergencyContact: '+91 98765 00000'
+      name: 'Unauthorized Self Register',
+      email: `unauth_${Date.now()}@example.com`,
+      password: 'PatientPass123!'
     });
-    assert.strictEqual(res.statusCode, 200);
-    assert.strictEqual(res.json.success, true);
-    assert.strictEqual(res.json.data.email, testPatientEmail);
-    assert.strictEqual(res.json.data.role, 'PATIENT');
+    assert.strictEqual(res.statusCode, 403);
+    assert.strictEqual(res.json.success, false);
   });
 
-  // 10. Login with newly created patient account
+  // 10. Hospital Admin onboards patient and provisions credentials -> Patient logs in
+  const testPatientEmail = `testpatient_${Date.now()}@example.com`;
   let patientToken = null;
-  await test('10. Login with newly created patient account', async () => {
-    const res = await request({
+  await test('10. Hospital Admin onboards patient and provisions login credentials', async () => {
+    // Authenticate Hospital Admin first
+    const hospAuthRes = await request({
       hostname: 'localhost',
       port: 8080,
       path: '/api/auth/login',
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, {
+      identifier: 'admin@citygeneral.in',
+      password: 'Hospital@123!'
+    });
+    assert.strictEqual(hospAuthRes.statusCode, 200);
+    const hospToken = hospAuthRes.json.data.accessToken;
+
+    // Hospital Admin onboards patient
+    const createPatRes = await request({
+      hostname: 'localhost',
+      port: 8080,
+      path: '/api/patients',
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${hospToken}`
       }
+    }, {
+      name: 'Aarav Sharma',
+      contact: '+91 98765 43210',
+      phone: '+91 98765 43210',
+      email: testPatientEmail,
+      age: 28,
+      gender: 'Male',
+      bloodGroup: 'B+',
+      address: '123 Test Street, New Delhi',
+      emergencyContact: '+91 98765 00000',
+      primaryDoctorId: 'DOC-201',
+      password: 'PatientPass123!'
+    });
+    assert(createPatRes.statusCode === 200 || createPatRes.statusCode === 201, `Expected 200 or 201, got ${createPatRes.statusCode}`);
+    assert.strictEqual(createPatRes.json.success, true);
+
+    // Patient logs in with provisioned credentials
+    const patLoginRes = await request({
+      hostname: 'localhost',
+      port: 8080,
+      path: '/api/auth/login',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
     }, {
       identifier: testPatientEmail,
       password: 'PatientPass123!'
     });
-    assert.strictEqual(res.statusCode, 200);
-    assert.strictEqual(res.json.success, true);
-    assert(res.json.data.accessToken);
-    assert.strictEqual(res.json.data.user.email, testPatientEmail);
-    assert.strictEqual(res.json.data.user.role, 'PATIENT');
-    patientToken = res.json.data.accessToken;
+    assert.strictEqual(patLoginRes.statusCode, 200);
+    assert.strictEqual(patLoginRes.json.success, true);
+    assert(patLoginRes.json.data.accessToken);
+    assert.strictEqual(patLoginRes.json.data.user.role, 'PATIENT');
+    patientToken = patLoginRes.json.data.accessToken;
   });
 
-  // 11. Duplicate registration rejection with 409
-  await test('11. Duplicate patient registration returns 409 Conflict', async () => {
-    const res = await request({
-      hostname: 'localhost',
-      port: 8080,
-      path: '/api/auth/register/patient',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }, {
-      name: 'Duplicate Aarav',
-      email: testPatientEmail,
-      password: 'PatientPass123!'
-    });
-    assert.strictEqual(res.statusCode, 409);
-    assert.strictEqual(res.json.success, false);
-    assert(res.json.message.includes('already exists'));
-  });
-
-  // 12. Register a new hospital facility
-  const testHospitalEmail = `testhosp_${Date.now()}@facility.com`;
-  await test('12. Register new hospital facility via /api/auth/register/hospital', async () => {
+  // 11. Reject public hospital facility registration with 403
+  await test('11. Public hospital facility registration via /api/auth/register/hospital is rejected with 403 Forbidden', async () => {
     const res = await request({
       hostname: 'localhost',
       port: 8080,
@@ -254,22 +262,42 @@ async function runTests() {
         'Content-Type': 'application/json'
       }
     }, {
-      hospitalName: 'St. Jude Memorial Hospital',
+      hospitalName: 'Illegal Hospital Sign-up',
       registrationNumber: `REG-${Date.now()}`,
-      email: testHospitalEmail,
-      phone: '+91 98200 11223',
-      hospitalType: 'Multispeciality',
-      totalBeds: 350,
-      address: '77 Medical Park',
-      city: 'Mumbai',
-      state: 'Maharashtra',
-      pincode: '400001',
+      email: `illegal_${Date.now()}@facility.com`,
       password: 'HospitalAdminPass123!'
     });
-    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.statusCode, 403);
+    assert.strictEqual(res.json.success, false);
+  });
+
+  // 12. Super Admin creates and manages hospital facility
+  const testHospitalEmail = `testhosp_${Date.now()}@facility.com`;
+  await test('12. Super Admin onboards authorized hospital facility via /api/hospitals', async () => {
+    const res = await request({
+      hostname: 'localhost',
+      port: 8080,
+      path: '/api/hospitals',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      }
+    }, {
+      name: 'St. Jude Memorial Hospital',
+      code: `SJM-${Date.now().toString().slice(-4)}`,
+      email: testHospitalEmail,
+      contact: '+91 98200 11223',
+      location: '77 Medical Park, Mumbai',
+      totalBeds: 350,
+      availableBeds: 50,
+      status: 'ACTIVE',
+      initialPassword: 'HospitalAdminPass123!'
+    });
+    assert(res.statusCode === 200 || res.statusCode === 201, `Expected 200 or 201, got ${res.statusCode}`);
     assert.strictEqual(res.json.success, true);
-    assert.strictEqual(res.json.data.email, testHospitalEmail);
-    assert.strictEqual(res.json.data.role, 'HOSPITAL_ADMIN');
+    const hospObj = res.json.data.hospital || res.json.data;
+    assert.strictEqual(hospObj.name, 'St. Jude Memorial Hospital');
   });
 
   // 13. Access protected /api/auth/me with JWT

@@ -39,6 +39,36 @@ public class LabReport {
     @Column(name = "status", nullable = false, length = 32)
     private String status = "FINAL";
 
+    @Column(name = "specimen_type", length = 64)
+    private String specimenType;
+
+    @Column(name = "specimen_id", length = 64)
+    private String specimenId;
+
+    @Column(name = "sample_collection_date")
+    private LocalDateTime sampleCollectionDate;
+
+    @Column(name = "sample_received_date")
+    private LocalDateTime sampleReceivedDate;
+
+    @Column(name = "collection_site", length = 128)
+    private String collectionSite;
+
+    @Column(name = "clinical_indication", columnDefinition = "TEXT")
+    private String clinicalIndication;
+
+    @Column(name = "technician_name", length = 128)
+    private String technicianName;
+
+    @Column(name = "pathologist_name", length = 128)
+    private String pathologistName;
+
+    @Column(name = "lab_comments", columnDefinition = "TEXT")
+    private String labComments;
+
+    @Column(name = "results_json", columnDefinition = "TEXT")
+    private String resultsJson;
+
     public LabReport() {}
 
     public LabReport(String id, String patientId, String doctorId, String hospitalId, String testName, String category, String resultSummary, LocalDateTime reportDate, String status) {
@@ -79,4 +109,34 @@ public class LabReport {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getSpecimenType() { return specimenType; }
+    public void setSpecimenType(String specimenType) { this.specimenType = specimenType; }
+
+    public String getSpecimenId() { return specimenId; }
+    public void setSpecimenId(String specimenId) { this.specimenId = specimenId; }
+
+    public LocalDateTime getSampleCollectionDate() { return sampleCollectionDate; }
+    public void setSampleCollectionDate(LocalDateTime sampleCollectionDate) { this.sampleCollectionDate = sampleCollectionDate; }
+
+    public LocalDateTime getSampleReceivedDate() { return sampleReceivedDate; }
+    public void setSampleReceivedDate(LocalDateTime sampleReceivedDate) { this.sampleReceivedDate = sampleReceivedDate; }
+
+    public String getCollectionSite() { return collectionSite; }
+    public void setCollectionSite(String collectionSite) { this.collectionSite = collectionSite; }
+
+    public String getClinicalIndication() { return clinicalIndication; }
+    public void setClinicalIndication(String clinicalIndication) { this.clinicalIndication = clinicalIndication; }
+
+    public String getTechnicianName() { return technicianName; }
+    public void setTechnicianName(String technicianName) { this.technicianName = technicianName; }
+
+    public String getPathologistName() { return pathologistName; }
+    public void setPathologistName(String pathologistName) { this.pathologistName = pathologistName; }
+
+    public String getLabComments() { return labComments; }
+    public void setLabComments(String labComments) { this.labComments = labComments; }
+
+    public String getResultsJson() { return resultsJson; }
+    public void setResultsJson(String resultsJson) { this.resultsJson = resultsJson; }
 }
