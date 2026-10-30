@@ -4,8 +4,15 @@
  */
 
 (function () {
-  const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const defaultApi = isLocalHost ? 'http://localhost:8080' : window.location.origin;
+  const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  let defaultApi = (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file:'))
+    ? window.location.origin
+    : 'http://localhost:8080';
+
+  // If local host on non-proxy port (e.g. 5173 / Vite dev server), talk directly to backend on 8080
+  if (isLocalHost && window.location.port !== '8000' && window.location.port !== '8080' && window.location.port !== '') {
+    defaultApi = 'http://localhost:8080';
+  }
 
   const envApiUrl = (typeof window !== 'undefined' && (
     window.__HOSPITRACK_API_URL__ ||

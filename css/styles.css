@@ -251,6 +251,7 @@ code {
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.45);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   z-index: 998;
 }
@@ -723,6 +724,7 @@ code {
   flex-direction: column;
   padding: 16px 12px;
   overflow-y: auto;
+  -webkit-user-select: none;
   user-select: none;
   width: var(--sidebar-width, 260px);
   transition: width var(--transition-normal), padding var(--transition-normal);
@@ -1322,6 +1324,7 @@ textarea.form-control {
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.6);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   z-index: 1050;
   align-items: center;
@@ -1496,6 +1499,7 @@ textarea.form-control {
   height: 48px;
   border-radius: 12px;
   background: linear-gradient(135deg, rgba(13, 148, 136, 0.4) 0%, rgba(2, 132, 199, 0.4) 100%);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   color: #FFFFFF;
   display: flex;
@@ -1632,6 +1636,7 @@ textarea.form-control {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -1729,6 +1734,7 @@ textarea.form-control {
   border: 1px solid var(--border-color, #E2E8F0);
   border-radius: 12px;
   padding: 4px;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -2077,7 +2083,6 @@ textarea.form-control {
   gap: 4px;
   overflow-x: auto;
   flex-wrap: nowrap;
-  -webkit-overflow-scrolling: touch;
   padding: 5px 6px;
   margin-bottom: 24px;
   background: #FFFFFF;
@@ -2119,6 +2124,7 @@ textarea.form-control {
   flex-shrink: 0;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   outline: none;
+  -webkit-user-select: none;
   user-select: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -2629,6 +2635,7 @@ textarea.form-control {
 .landing-navbar {
   height: 72px;
   background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
   position: sticky;
@@ -5468,6 +5475,7 @@ html[data-sidebar-state="collapsed"] .nav-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -6808,8 +6816,8 @@ html[data-sidebar-state="collapsed"] .nav-icon {
   color: var(--text-main);
   font-family: inherit;
   cursor: pointer;
-  appearance: none;
   -webkit-appearance: none;
+  appearance: none;
   transition: all var(--transition-fast);
 }
 
@@ -7137,6 +7145,7 @@ html[data-sidebar-state="collapsed"] .nav-icon {
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.5);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   z-index: 1060;
   justify-content: flex-end;
@@ -7452,6 +7461,10 @@ html[data-sidebar-state="collapsed"] .nav-icon {
   max-width: 440px;
   margin: 0 auto 16px auto;
   line-height: 1.5;
+}
+
+.workspace-tabs-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .workspace-tabs-bar {
@@ -8143,6 +8156,7 @@ html[data-sidebar-state="collapsed"] .nav-icon {
 .discharge-stepper-arrow {
   color: var(--text-muted);
   font-size: 0.95rem;
+  -webkit-user-select: none;
   user-select: none;
   opacity: 0.6;
 }
@@ -8424,8 +8438,8 @@ html[data-sidebar-state="collapsed"] .nav-icon {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   z-index: 1050;
   opacity: 0;
   pointer-events: none;
@@ -9494,6 +9508,7 @@ html[data-sidebar-state="collapsed"] .nav-icon {
 
 .journey-stat-item {
   background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
@@ -10612,8 +10627,8 @@ html[data-sidebar-state="collapsed"] .sidebar-profile-card[data-tooltip]:hover::
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.48);
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   z-index: 1050;
   opacity: 0;
   visibility: hidden;
@@ -10830,6 +10845,7 @@ html[data-sidebar-state="collapsed"] .sidebar-profile-card[data-tooltip]:hover::
   border-right: 1px solid rgba(226, 232, 240, 0.8) !important;
   display: flex !important;
   flex-direction: column !important;
+  -webkit-user-select: none !important;
   user-select: none !important;
 }
 
@@ -10870,6 +10886,7 @@ html[data-sidebar-state="collapsed"] .sidebar-profile-card[data-tooltip]:hover::
   padding: 6px 8px !important;
   border-radius: 10px !important;
   cursor: pointer !important;
+  -webkit-user-select: none !important;
   user-select: none !important;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
@@ -11540,6 +11557,7 @@ html[data-sidebar-state="collapsed"] .sidebar-hamburger-btn {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -11631,8 +11649,8 @@ html[data-sidebar-state="collapsed"] .sidebar-hamburger-btn {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 9px center;
-  appearance: none;
   -webkit-appearance: none;
+  appearance: none;
 }
 
 .referral-modal-body textarea.form-control {
@@ -11757,6 +11775,7 @@ html[data-sidebar-state="collapsed"] .sidebar-hamburger-btn {
 .referral-preview-overlay {
   z-index: 1050 !important;
   background: rgba(15, 23, 42, 0.75) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
   backdrop-filter: blur(4px) !important;
   padding: 20px !important;
   display: flex !important;
@@ -12741,6 +12760,7 @@ html[data-sidebar-state="collapsed"] .sidebar-hamburger-btn {
   inset: 0;
   z-index: 1060;
   background: rgba(15, 23, 42, 0.5);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   display: flex;
   justify-content: flex-end;
@@ -12831,8 +12851,8 @@ html[data-sidebar-state="collapsed"] .sidebar-hamburger-btn {
     box-shadow: none !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #0F172A !important;
-    print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 
@@ -13894,7 +13914,6 @@ html, body {
   overflow-x: auto !important;
   scroll-behavior: smooth !important;
   scroll-snap-type: x mandatory !important;
-  -webkit-overflow-scrolling: touch !important;
 }
 
 .scroll-item {
@@ -13904,8 +13923,8 @@ html, body {
 
 /* 5. Subtle Edge Gradient Fade Masks */
 .scroll-fade-mask {
-  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent) !important;
   -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent) !important;
+  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent) !important;
 }
 
 /* 6. Wide Clinical Data Tables & Sticky Pinned Identifier Columns */
@@ -13922,7 +13941,6 @@ html, body {
   max-width: 100% !important;
   min-width: 0 !important;
   overflow-x: auto !important;
-  -webkit-overflow-scrolling: touch !important;
   border-radius: 12px !important;
   border: 1px solid #E2E8F0 !important;
   background: #FFFFFF !important;

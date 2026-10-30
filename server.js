@@ -6,6 +6,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const PORT = process.env.PORT || 8000;
 const PUBLIC_DIR = __dirname;
@@ -128,10 +129,89 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection:', reason);
 });
 
-server.listen(PORT, () => {
+let backendProcess = null;
+
+function checkBackendHealth(host, port) {
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: host,
+      port: port,
+      path: '/api/health',
+      method: 'GET',
+      timeout: 2500
+    }, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
+async function ensureBackendRunning() {
+  const isHealthy = await checkBackendHealth(BACKEND_HOST, BACKEND_PORT);
+  if (isHealthy) {
+    console.log(`  Backend API:  http://${BACKEND_HOST}:${BACKEND_PORT} (Operational)`);
+    return;
+  }
+
+  const jarPath = path.join(__dirname, 'backend', 'target', 'hospitrack-backend-1.0.0.jar');
+  if (!fs.existsSync(jarPath)) {
+    console.log(`  [Backend] Spring Boot JAR not found at ${jarPath}`);
+    console.log(`  [Backend] Build backend: cd backend && mvnw clean package -DskipTests`);
+    return;
+  }
+
+  console.log(`  [Backend] Launching Spring Boot backend on port ${BACKEND_PORT}...`);
+  backendProcess = spawn('java', ['-jar', jarPath], {
+    cwd: __dirname,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  backendProcess.stdout.on('data', (data) => {
+    const msg = data.toString();
+    if (msg.includes('Tomcat started on port') || msg.includes('Started HospitrackApplication')) {
+      console.log(`  [Backend] Spring Boot backend is UP on port ${BACKEND_PORT}`);
+    }
+  });
+
+  backendProcess.stderr.on('data', (data) => {
+    const msg = data.toString();
+    if (msg.includes('ERROR')) {
+      console.error(`  [Backend Error] ${msg.trim()}`);
+    }
+  });
+
+  backendProcess.on('exit', (code, signal) => {
+    if (code !== null && code !== 0) {
+      console.log(`  [Backend] Process exited with code ${code}`);
+    }
+    backendProcess = null;
+  });
+}
+
+function handleProcessExit() {
+  if (backendProcess) {
+    console.log('\nStopping Spring Boot backend...');
+    try {
+      backendProcess.kill('SIGTERM');
+    } catch (e) {}
+    backendProcess = null;
+  }
+  process.exit(0);
+}
+
+process.on('SIGINT', handleProcessExit);
+process.on('SIGTERM', handleProcessExit);
+
+server.listen(PORT, async () => {
   console.log('====================================================');
   console.log('  HOSPITRACK HEALTHCARE PLATFORM LIVE');
-  console.log(`  Local URL: http://localhost:${PORT}`);
-  console.log('  Environment: Production');
+  console.log(`  Frontend URL: http://localhost:${PORT}`);
+  await ensureBackendRunning();
+  console.log('  Environment:  Production / Development');
   console.log('====================================================');
 });

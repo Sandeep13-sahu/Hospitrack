@@ -49,7 +49,11 @@ async function initApp() {
   // Authentication State Check
   if (auth && auth.isAuthenticated()) {
     const authUser = auth.getCurrentUser();
-    await store.syncAllData();
+    if (store && typeof store.syncAllData === 'function') {
+      await store.syncAllData().catch((syncErr) => {
+        console.warn('Initial store sync notice during initApp:', syncErr);
+      });
+    }
     showAuthenticatedApp(authUser);
   } else {
     // Check if user specifically navigated to #login or is landing on home
@@ -256,7 +260,11 @@ function showAuthenticatedApp(user) {
 
   updateHeaderUI(user, activeRole);
   renderDynamicSidebar(user, activeRole);
-  renderNotificationsDropdown();
+  if (typeof renderNotificationsDropdown === 'function') {
+    renderNotificationsDropdown();
+  } else if (typeof window.renderNotificationsDropdown === 'function') {
+    window.renderNotificationsDropdown();
+  }
 
   // If page was loaded with a deep link / workspace hash, route to it!
   const hash = window.location.hash;
@@ -611,81 +619,9 @@ async function handleLoginSubmit(event) {
     if (spinner) spinner.classList.remove('hidden');
     if (btnText) btnText.textContent = 'Authenticating...';
 
-    let user = null;
-
-    try {
-      const authResult = await window.hospitrackAuth.login(identifier, password, remember);
-      user = (authResult && authResult.user) ? authResult.user : (authResult || window.hospitrackAuth.getCurrentUser());
-    } catch (authErr) {
-      // 1. If backend responded with 401/403 HTTP error, preserve and rethrow
-      if (authErr.status && (authErr.status === 401 || authErr.status === 403)) {
-        throw authErr;
-      }
-      // 2. If it's an Access Denied role violation from test harness, rethrow
-      if (authErr.message && authErr.message.startsWith('Access Denied')) {
-        throw authErr;
-      }
-
-      // 3. True backend offline / presentation fallback:
-      // Provision dedicated clean mock user matching active role and evaluate role segregation
-      const activePortal = (currentSelectedLoginRole || 'PATIENT').toUpperCase();
-      const idLower = identifier.toLowerCase();
-      let inferredRole = activePortal;
-
-      if (idLower.includes('doctor') && activePortal !== 'DOCTOR') {
-        inferredRole = 'DOCTOR';
-      } else if (idLower.includes('hospital') && activePortal !== 'HOSPITAL') {
-        inferredRole = 'HOSPITAL_ADMIN';
-      } else if (idLower.includes('patient') && activePortal !== 'PATIENT') {
-        inferredRole = 'PATIENT';
-      } else if (idLower.includes('admin') && !idLower.includes('hospital')) {
-        inferredRole = 'SUPER_ADMIN';
-      }
-
-      if (inferredRole === 'PATIENT') {
-        user = {
-          id: 'PAT-300',
-          name: 'Rahul Sharma',
-          email: identifier,
-          role: 'PATIENT',
-          bloodGroup: 'B+',
-          age: 34,
-          gender: 'Male',
-          phone: '+91 98765 43210',
-          emergencyContact: '+91 98765 00000',
-          address: 'Flat 402, Lotus Enclave, Mumbai'
-        };
-      } else if (inferredRole === 'DOCTOR') {
-        user = {
-          id: 'DOC-201',
-          name: 'Dr. Sarah Sharma',
-          email: identifier,
-          role: 'DOCTOR',
-          specialty: 'Cardiology',
-          hospitalId: 'CGH-01',
-          hospitalName: 'City General Hospital'
-        };
-      } else if (inferredRole === 'HOSPITAL_ADMIN' || inferredRole === 'HOSPITAL') {
-        user = {
-          id: 'HOSP-101',
-          name: 'City General Hospital Admin',
-          email: identifier,
-          role: 'HOSPITAL_ADMIN',
-          hospitalId: 'CGH-01',
-          hospitalName: 'City General Hospital'
-        };
-      } else {
-        user = {
-          id: 'ADMIN-01',
-          name: 'Super Admin',
-          email: identifier,
-          role: 'SUPER_ADMIN'
-        };
-      }
-
-      // Simulate a brief authentic authentication response
-      await new Promise(resolve => setTimeout(resolve, 450));
-    }
+    // Authenticate with real backend API
+    const authResult = await window.hospitrackAuth.login(identifier, password, remember);
+    const user = (authResult && authResult.user) ? authResult.user : (authResult || window.hospitrackAuth.getCurrentUser());
 
     if (!user) {
       throw new Error('Authentication failed. User profile could not be loaded.');
@@ -1869,7 +1805,7 @@ window.navigateToDefaultOverview = navigateToDefaultOverview;
 // --------------------------------------------------------------------------
 // SINGLE SOURCE OF TRUTH ROUTER
 // --------------------------------------------------------------------------
-window.navigateToRoleSection = function(role, section, params = {}, updateUrl = true) {
+function navigateToRoleSection(role, section, params = {}, updateUrl = true) {
   const auth = window.hospitrackAuth;
   const user = auth ? auth.getCurrentUser() : null;
   if (!user) {
@@ -2021,7 +1957,8 @@ window.navigateToRoleSection = function(role, section, params = {}, updateUrl = 
       </div>
     `;
   }
-};
+}
+window.navigateToRoleSection = navigateToRoleSection;
 
 // Backward-compatibility navigation helpers all delegate to the single central router
 window.navigateToAdminSection = function(section) {
@@ -2780,7 +2717,7 @@ window.openTransferWorkspace = function(transferId) {
 };
 
 // Unified Workspace Controller
-window.openWorkspace = function(type, id, tab = 'overview', updateHistory = true) {
+function openWorkspace(type, id, tab = 'overview', updateHistory = true) {
   const user = window.hospitrackAuth?.getCurrentUser();
   if (!user) {
     showLoginView();
@@ -2825,7 +2762,8 @@ window.openWorkspace = function(type, id, tab = 'overview', updateHistory = true
       window.workspaceRenderer.renderNotFound(container, 'Workspace', id);
     }
   }
-};
+}
+window.openWorkspace = openWorkspace;
 
 window.navigateWorkspaceBack = function() {
   if (window.history.length > 1) {
@@ -2921,7 +2859,7 @@ function closeNotifDropdown() {
 }
 window.closeNotifDropdown = closeNotifDropdown;
 
-window.renderNotificationsDropdown = function() {
+function renderNotificationsDropdown() {
   const store = window.hospitrackStore;
   const notifs = store.getNotifications();
   const unreadCount = notifs.filter(n => !n.read).length;
@@ -2952,7 +2890,8 @@ window.renderNotificationsDropdown = function() {
       `).join('');
     }
   }
-};
+}
+window.renderNotificationsDropdown = renderNotificationsDropdown;
 
 window.handleNotifClick = function(notifId) {
   const store = window.hospitrackStore;
