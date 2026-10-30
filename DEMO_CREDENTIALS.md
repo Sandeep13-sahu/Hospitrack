@@ -140,3 +140,10 @@
 | **DOCTOR** | DEEEPAK PANDEY | `deepak@apexcare.in` | `Deepak123@!` | 2026-10-30 13:40:21 | `ACTIVE` |
 | **DOCTOR** | Dr. Rahul Verma | `dr.rahul.1793352349791@citygeneral.in` | `DoctorSecret@123` | 2026-10-30 14:55:50 | `ACTIVE` |
 | **DOCTOR** | Dr. Login Test | `dr.login.1793352350642@citygeneral.in` | `DocPassword@123` | 2026-10-30 14:55:50 | `ACTIVE` |
+| **PATIENT** | Kavita Rao | `kavita.1793382964214@gmail.com` | `KavitaPass@2026` | 2026-10-30 23:26:04 | `ACTIVE` |
+| **DOCTOR** | Dr. Rohit Sen | `dr.rohit.1793382964779@citygeneral.in` | `RohitSecure@2026` | 2026-10-30 23:26:04 | `ACTIVE` |
+| **DOCTOR** | Dr. Workstation Test | `dr.work.1793382965018@citygeneral.in` | `DoctorWork@123!` | 2026-10-30 23:26:05 | `ACTIVE` |
+| **DOCTOR** | Dr. Anand Kulkarni | `dr.anand.1793382965353@citygeneral.in` | `DoctorPass@123!` | 2026-10-30 23:26:05 | `ACTIVE` |
+| **PATIENT** | Aarav Singhania | `patient.1793382965481@gmail.com` | `PatientSecret@123` | 2026-10-30 23:26:05 | `ACTIVE` |
+| **PATIENT** | Meera Nambiar | `meera.1793382966226@gmail.com` | `Meera@Password99` | 2026-10-30 23:26:06 | `ACTIVE` |
+| **PATIENT** | Onboarded Patient | `onboarded6235@test.org` | `PatientInit123!` | 2026-10-30 23:27:46 | `ACTIVE` |
