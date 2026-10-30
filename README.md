@@ -1,3 +1,5 @@
+<<<<<<< HEAD
+
 # HOSPITRACK — Hospital Referral & Patient Record Management Platform
 
 > **"Connected Care. Smarter Referrals. Better Patient Journeys."**
@@ -52,17 +54,21 @@ Hospitrack is a modern, enterprise-ready, role-based healthcare coordination pla
 ## 🚀 Quick Local Startup
 
 ### Prerequisites
+
 - **Java 17** (OpenJDK / Eclipse Temurin)
 - **Node.js 18+**
 
 ### Launching Local Environment
+
 ```bash
 # Double-click launch-hospitrack.bat or run:
 ./launch-hospitrack.bat
 ```
+
 This automatically starts the Spring Boot backend on `http://localhost:8080` and the web interface on `http://localhost:8000`.
 
 ### Stopping All Services
+
 ```bash
 # Double-click stop-hospitrack.bat or run:
 ./stop-hospitrack.bat
@@ -73,13 +79,16 @@ This automatically starts the Spring Boot backend on `http://localhost:8080` and
 ## 🧪 Automated Testing
 
 ### 1. Spring Boot Backend Security & Workflow Tests (17/17 PASS)
+
 ```bash
 cd backend
 ./mvnw clean test
 # On Windows:
 mvnw.cmd test
 ```
+
 **Test Coverage Includes:**
+
 - BCrypt password hashing & matching
 - Valid login returning JWT and UserDto
 - Invalid password rejection (401)
@@ -93,9 +102,11 @@ mvnw.cmd test
 - Single-use hashed email verification & password reset replay protection.
 
 ### 2. Frontend QA Integration Test Suite (7/7 PASS)
+
 ```bash
 node test.js
 ```
+
 Verifies initial seed integrity, hospital onboarding, inpatient admission, dynamic bed math, referrals, transfers, duplicate drug safety rules, and database reset.
 
 ---
@@ -111,6 +122,7 @@ Database  --> Render Managed PostgreSQL
 ```
 
 ### Deployment Configuration (`render.yaml`)
+
 1. Connect your repository to Render via Blueprint.
 2. Provide the following environment variables in the Render Dashboard:
    - `JWT_SECRET`: High-entropy secret key (min 32 characters)
@@ -130,3 +142,8 @@ For local evaluation, see [DEMO_CREDENTIALS.md](file:///s:/hospitrack-project/DE
 ## 📜 Presentation Explanation for College Evaluation
 
 > *"Hospitrack uses a role-based authentication architecture. Users authenticate through the Spring Boot backend. Passwords are stored as BCrypt hashes rather than plaintext passwords. Spring Security determines authorization based on the user's role and hospital relationship. PostgreSQL stores the application data, while Brevo is used for transactional emails such as account verification and password reset. The application is deployed using Render."*
+=======
+
+# Hospitrack
+>>>>>>>
+>>>>>>> eabb23a22dd0ae84b22e8250c18f3cb31ad65a33
