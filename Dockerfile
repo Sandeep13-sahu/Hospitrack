@@ -40,6 +40,7 @@ ENV HOST=0.0.0.0
 ENV PORT=10000
 ENV BACKEND_HOST=127.0.0.1
 ENV BACKEND_PORT=8080
+ENV JAVA_OPTS="-Xms96m -Xmx256m -XX:MaxMetaspaceSize=112m -XX:ReservedCodeCacheSize=48m -Xss512k -XX:+UseSerialGC"
 
 # Copy root package descriptor
 COPY package*.json ./

@@ -49,11 +49,17 @@ function normalizeDatabaseUrl(rawUrl) {
 
       const jdbcUrl = `jdbc:postgresql://${host}:${port}/${dbName}${search}`;
       const updates = { DATABASE_URL: jdbcUrl };
-      if (username && !process.env.DATABASE_USERNAME) {
-        updates.DATABASE_USERNAME = username;
+      if (username) {
+        if (!process.env.DB_USERNAME && !process.env.DATABASE_USERNAME) {
+          updates.DB_USERNAME = username;
+          updates.DATABASE_USERNAME = username;
+        }
       }
-      if (password && !process.env.DATABASE_PASSWORD) {
-        updates.DATABASE_PASSWORD = password;
+      if (password) {
+        if (!process.env.DB_PASSWORD && !process.env.DATABASE_PASSWORD) {
+          updates.DB_PASSWORD = password;
+          updates.DATABASE_PASSWORD = password;
+        }
       }
       return updates;
     } catch (e) {
@@ -261,9 +267,19 @@ async function ensureBackendRunning() {
     SPRING_PROFILES_ACTIVE: springProfile
   };
 
+  // Optimized memory profile for Render Free 512MB cgroup limit
+  const defaultJavaOpts = [
+    '-Xms96m',
+    '-Xmx256m',
+    '-XX:MaxMetaspaceSize=112m',
+    '-XX:ReservedCodeCacheSize=48m',
+    '-Xss512k',
+    '-XX:+UseSerialGC'
+  ];
+
   const javaOpts = process.env.JAVA_OPTS
     ? process.env.JAVA_OPTS.split(' ').filter(Boolean)
-    : ['-Xms128m', '-Xmx512m'];
+    : defaultJavaOpts;
 
   const javaArgs = [
     ...javaOpts,
