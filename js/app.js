@@ -289,7 +289,7 @@ const LOGIN_ROLE_CONFIG = {
     label: 'Patient',
     icon: '👤',
     inputLabel: 'Patient Email or ID',
-    placeholder: 'e.g. ramesh@example.com or patient-id',
+    placeholder: 'e.g. rahul.sharma@gmail.com or john.doe@email.com',
     subtitle: 'Continue to your personal health records, prescriptions & lab results.',
     helperHtml: 'Need help accessing your patient portal? <a href="javascript:void(0)" onclick="openHelpDeskModal(\'PATIENT\')" class="auth-helper-link">Contact Hospital Desk</a>'
   },
@@ -297,7 +297,7 @@ const LOGIN_ROLE_CONFIG = {
     label: 'Doctor',
     icon: '🩺',
     inputLabel: 'Medical Email or License ID',
-    placeholder: 'e.g. dr.sharma@hospital.org or NPI / Medical ID',
+    placeholder: 'e.g. dr.arjun@apexcare.com, r.verma@apexcare.in, s.sharma@citygeneral.in',
     subtitle: 'Continue to your clinical workstation, consultations & decision safety.',
     helperHtml: 'Doctor credentials are tied to your institutional SSO. <a href="javascript:void(0)" onclick="openHelpDeskModal(\'DOCTOR\')" class="auth-helper-link">Verify Credentials</a>'
   },
@@ -305,13 +305,13 @@ const LOGIN_ROLE_CONFIG = {
     label: 'Hospital',
     icon: '🏥',
     inputLabel: 'Facility Administrator Email / Code',
-    placeholder: 'e.g. admin@metrohealth.gov or facility license code',
+    placeholder: 'e.g. operations@apexcare.in, admin@citygeneral.in',
     subtitle: 'Continue to your operations deck, ward capacity & emergency transfers.',
     helperHtml: 'Requires Department Token or Facility Key. <a href="javascript:void(0)" onclick="openHelpDeskModal(\'HOSPITAL\')" class="auth-helper-link">Facility Support</a>'
   }
 };
 
-function selectLoginRole(role) {
+function selectLoginRole(role, preserveValues = false) {
   const normRole = (role || 'PATIENT').toUpperCase();
   currentSelectedLoginRole = (normRole === 'HOSPITAL_ADMIN') ? 'HOSPITAL' : normRole;
 
@@ -322,10 +322,12 @@ function selectLoginRole(role) {
   const passwordInput = document.getElementById('loginPassword');
   const rememberCheckbox = document.getElementById('loginRememberMe');
 
-  if (identifierInput) identifierInput.value = '';
-  if (passwordInput) passwordInput.value = '';
-  if (rememberCheckbox) rememberCheckbox.checked = false;
-  clearLoginAlert();
+  if (!preserveValues) {
+    if (identifierInput) identifierInput.value = '';
+    if (passwordInput) passwordInput.value = '';
+    if (rememberCheckbox) rememberCheckbox.checked = false;
+    clearLoginAlert();
+  }
 
   // 2. Active Tab Pill Animation with Sliding Background Glider:
   const patientTab = document.getElementById('loginRoleTabPatient');
@@ -407,9 +409,11 @@ function selectLoginRole(role) {
   if (helperNote) {
     helperNote.innerHTML = config.helperHtml;
   }
+  window.currentSelectedLoginRole = currentSelectedLoginRole;
 }
 window.selectLoginRole = selectLoginRole;
 window.selectLoginRoleTab = selectLoginRole;
+window.getCurrentSelectedLoginRole = () => currentSelectedLoginRole;
 
 // Accessible Keyboard Navigation for Role Tabs (ArrowLeft / ArrowRight)
 function initRoleTabsKeyboardNav() {
@@ -576,6 +580,68 @@ function showLoginAlert(msg, type = 'error') {
   }
 }
 
+function showRoleMismatchAlert(mismatch, identifier, user) {
+  const banner = document.getElementById('loginAlertBanner');
+  if (!banner) return;
+
+  const cleanId = (identifier || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[c]));
+
+  let doctorHint = '';
+  if (mismatch.destPortal === 'HOSPITAL' && currentSelectedLoginRole === 'DOCTOR') {
+    if (cleanId.toLowerCase().includes('apexcare')) {
+      doctorHint = `<div style="margin-top: 6px; font-size: 0.8rem; color: #475569; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 6px 10px;">🩺 <em>Doctor accounts for Apex Care: <strong>dr.arjun@apexcare.com</strong> or <strong>r.verma@apexcare.in</strong></em></div>`;
+    } else if (cleanId.toLowerCase().includes('citygeneral')) {
+      doctorHint = `<div style="margin-top: 6px; font-size: 0.8rem; color: #475569; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 6px 10px;">🩺 <em>Doctor accounts for City General: <strong>s.sharma@citygeneral.in</strong> or <strong>dr.sarah@citygeneral.com</strong></em></div>`;
+    }
+  }
+
+  banner.className = 'alert-banner error';
+  banner.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="font-weight: 600; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4;">
+        <span style="font-size: 1.1rem; line-height: 1;">⚠️</span>
+        <div>
+          <div>${mismatch.msg}</div>
+          <div style="font-size: 0.82rem; font-weight: normal; margin-top: 3px; color: #991b1b;">
+            Account <strong>${cleanId}</strong> is registered as a <strong>${mismatch.roleLabel}</strong>.
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px;">
+        <button type="button" class="btn btn-sm" style="background: #0284c7; color: #ffffff; border: none; padding: 6px 14px; font-weight: 600; font-size: 0.82rem; border-radius: 6px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1);" onclick="switchLoginPortalAndPreserve('${mismatch.destPortal}', '${cleanId}')">
+          Switch to "${mismatch.destLabel}" Tab &rarr;
+        </button>
+        <span style="font-size: 0.78rem; color: #64748b;">(Keeps your entered email)</span>
+      </div>
+      ${doctorHint}
+    </div>
+  `;
+  banner.classList.remove('hidden');
+}
+window.showRoleMismatchAlert = showRoleMismatchAlert;
+
+function switchLoginPortalAndPreserve(targetPortal, identifier) {
+  selectLoginRole(targetPortal, true);
+  const identifierInput = document.getElementById('loginIdentifier');
+  const passwordInput = document.getElementById('loginPassword');
+  if (identifierInput) {
+    identifierInput.value = identifier || '';
+  }
+  if (passwordInput) {
+    passwordInput.value = '';
+    passwordInput.focus();
+  }
+  const targetLabel = targetPortal === 'HOSPITAL' ? 'Hospital' : (targetPortal === 'DOCTOR' ? 'Doctor' : 'Patient');
+  showLoginAlert(`Switched to ${targetLabel} tab for "${identifier}". Please enter your password to sign in.`, 'info');
+}
+window.switchLoginPortalAndPreserve = switchLoginPortalAndPreserve;
+
 function clearRegisterAlert() {
   const banner = document.getElementById('registerAlertBanner');
   if (banner) {
@@ -638,28 +704,50 @@ async function handleLoginSubmit(event) {
     const isSuperAdmin = (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN');
 
     if (!isSuperAdmin) {
+      let mismatch = null;
+
       if (activePortal === 'PATIENT' && userRole !== 'PATIENT') {
-        if (window.hospitrackAuth && typeof window.hospitrackAuth.logout === 'function') {
-          await window.hospitrackAuth.logout().catch(() => {});
-        }
-        const destinationTab = userRole === 'DOCTOR' ? 'Doctor' : 'Hospital';
-        throw new Error(`Access Denied: This portal is for Patients only. Please switch to the "${destinationTab}" tab above to sign in.`);
+        const destPortal = userRole === 'DOCTOR' ? 'DOCTOR' : 'HOSPITAL';
+        const destLabel = userRole === 'DOCTOR' ? 'Doctor' : 'Hospital';
+        const roleLabel = userRole === 'DOCTOR' ? 'Medical Doctor' : 'Hospital Administrator';
+        mismatch = {
+          destPortal,
+          destLabel,
+          roleLabel,
+          msg: `Access Denied: This portal is for Patients only. Please switch to the "${destLabel}" tab above to sign in.`
+        };
       }
 
       if (activePortal === 'DOCTOR' && userRole !== 'DOCTOR') {
-        if (window.hospitrackAuth && typeof window.hospitrackAuth.logout === 'function') {
-          await window.hospitrackAuth.logout().catch(() => {});
-        }
-        const destinationTab = userRole === 'PATIENT' ? 'Patient' : 'Hospital';
-        throw new Error(`Access Denied: This portal is for Medical Doctors only. Please switch to the "${destinationTab}" tab above to sign in.`);
+        const destPortal = (userRole === 'HOSPITAL_ADMIN' || userRole === 'HOSPITAL') ? 'HOSPITAL' : 'PATIENT';
+        const destLabel = (userRole === 'HOSPITAL_ADMIN' || userRole === 'HOSPITAL') ? 'Hospital' : 'Patient';
+        const roleLabel = (userRole === 'HOSPITAL_ADMIN' || userRole === 'HOSPITAL') ? 'Hospital Administrator' : 'Patient';
+        mismatch = {
+          destPortal,
+          destLabel,
+          roleLabel,
+          msg: `Access Denied: This portal is for Medical Doctors only. Please switch to the "${destLabel}" tab above to sign in.`
+        };
       }
 
       if ((activePortal === 'HOSPITAL' || activePortal === 'HOSPITAL_ADMIN') && userRole !== 'HOSPITAL_ADMIN' && userRole !== 'HOSPITAL') {
+        const destPortal = userRole === 'PATIENT' ? 'PATIENT' : 'DOCTOR';
+        const destLabel = userRole === 'PATIENT' ? 'Patient' : 'Doctor';
+        const roleLabel = userRole === 'PATIENT' ? 'Patient' : 'Medical Doctor';
+        mismatch = {
+          destPortal,
+          destLabel,
+          roleLabel,
+          msg: `Access Denied: This portal is for Hospital Administrators and staff only. Please switch to the "${destLabel}" tab above to sign in.`
+        };
+      }
+
+      if (mismatch) {
         if (window.hospitrackAuth && typeof window.hospitrackAuth.logout === 'function') {
           await window.hospitrackAuth.logout().catch(() => {});
         }
-        const destinationTab = userRole === 'PATIENT' ? 'Patient' : 'Doctor';
-        throw new Error(`Access Denied: This portal is for Hospital Administrators and staff only. Please switch to the "${destinationTab}" tab above to sign in.`);
+        showRoleMismatchAlert(mismatch, identifier, user);
+        return;
       }
     }
 

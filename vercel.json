@@ -5,7 +5,7 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/((?!css|js|data|.*\\..*).*)",
+      "source": "/((?!api|css|js|data|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

@@ -14,9 +14,14 @@
     defaultApi = 'http://localhost:8080';
   }
 
+  const storedApiUrl = (typeof window !== 'undefined' && window.localStorage)
+    ? window.localStorage.getItem('hospitrack_api_base_url')
+    : null;
+
   const envApiUrl = (typeof window !== 'undefined' && (
     window.__HOSPITRACK_API_URL__ ||
-    (window.__ENV__ && (window.__ENV__.VITE_API_URL || window.__ENV__.VITE_API_BASE_URL || window.__ENV__.API_BASE_URL))
+    (window.__ENV__ && (window.__ENV__.VITE_API_URL || window.__ENV__.VITE_API_BASE_URL || window.__ENV__.API_BASE_URL)) ||
+    storedApiUrl
   )) || null;
 
   window.HOSPITRACK_CONFIG = {

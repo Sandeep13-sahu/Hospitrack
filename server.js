@@ -1,6 +1,6 @@
 /**
  * Hospitrack — Pure Node.js Web Server (Zero-Dependency)
- * Serves the web application at http://localhost:8000
+ * Serves the web application and orchestrates the Spring Boot backend
  */
 
 const http = require('http');
@@ -8,7 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const PORT = process.env.PORT || 8000;
+const PORT = parseInt(process.env.PORT, 10) || 8000;
+const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
 
 const MIME_TYPES = {
@@ -23,10 +24,67 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const BACKEND_PORT = process.env.BACKEND_PORT || 8080;
-const BACKEND_HOST = process.env.BACKEND_HOST || 'localhost';
+const BACKEND_PORT = parseInt(process.env.BACKEND_PORT, 10) || 8080;
+const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 
-const server = http.createServer((req, res) => {
+/**
+ * Normalizes PostgreSQL connection URLs for Spring Boot / JDBC compatibility.
+ * e.g., Render / Supabase "postgres://" or "postgresql://" -> "jdbc:postgresql://"
+ */
+function normalizeDatabaseUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return {};
+  const trimmed = rawUrl.trim();
+  if (trimmed.startsWith('jdbc:')) {
+    return { DATABASE_URL: trimmed };
+  }
+  if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) {
+    try {
+      const parsed = new URL(trimmed);
+      const host = parsed.hostname;
+      const port = parsed.port || '5432';
+      const dbName = parsed.pathname ? parsed.pathname.replace(/^\//, '') : 'hospitrack_prod';
+      const username = decodeURIComponent(parsed.username || '');
+      const password = decodeURIComponent(parsed.password || '');
+      const search = parsed.search || '';
+
+      const jdbcUrl = `jdbc:postgresql://${host}:${port}/${dbName}${search}`;
+      const updates = { DATABASE_URL: jdbcUrl };
+      if (username && !process.env.DATABASE_USERNAME) {
+        updates.DATABASE_USERNAME = username;
+      }
+      if (password && !process.env.DATABASE_PASSWORD) {
+        updates.DATABASE_PASSWORD = password;
+      }
+      return updates;
+    } catch (e) {
+      console.warn('  [Backend] Notice: Could not parse DATABASE_URL as URL, prefixing with jdbc::', e.message);
+      return { DATABASE_URL: `jdbc:${trimmed}` };
+    }
+  }
+  return {};
+}
+
+function checkBackendHealth(host, port) {
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: host,
+      port: port,
+      path: '/api/health',
+      method: 'GET',
+      timeout: 2000
+    }, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
+const server = http.createServer(async (req, res) => {
   // CORS & Security Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -40,6 +98,22 @@ const server = http.createServer((req, res) => {
   }
 
   let reqPath = decodeURI(req.url.split('?')[0]);
+
+  // Dedicated container health check endpoint (Render / orchestrators)
+  if (reqPath === '/health') {
+    const isHealthy = await checkBackendHealth(BACKEND_HOST, BACKEND_PORT);
+    res.writeHead(isHealthy ? 200 : 503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: isHealthy ? 'UP' : 'INITIALIZING',
+      service: 'hospitrack-platform',
+      frontend: 'UP',
+      backend: isHealthy ? 'UP' : 'INITIALIZING',
+      port: PORT,
+      backendPort: BACKEND_PORT,
+      timestamp: Date.now()
+    }));
+    return;
+  }
 
   // Proxy /api/* requests to Spring Boot backend
   if (reqPath.startsWith('/api/') || reqPath === '/api') {
@@ -131,24 +205,19 @@ process.on('unhandledRejection', (reason, promise) => {
 
 let backendProcess = null;
 
-function checkBackendHealth(host, port) {
-  return new Promise((resolve) => {
-    const req = http.request({
-      hostname: host,
-      port: port,
-      path: '/api/health',
-      method: 'GET',
-      timeout: 2500
-    }, (res) => {
-      resolve(res.statusCode === 200);
-    });
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
-    });
-    req.end();
-  });
+async function waitForBackendReady(maxWaitMs = 60000) {
+  process.stdout.write('  [Backend] Waiting for Spring Boot health probe');
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    if (await checkBackendHealth(BACKEND_HOST, BACKEND_PORT)) {
+      console.log('\n  [Backend] Spring Boot API is healthy and accepting traffic.');
+      return true;
+    }
+    process.stdout.write('.');
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  console.log(`\n  [Backend] Note: Backend did not report ready within ${maxWaitMs / 1000}s; requests will proxy as soon as initialization completes.`);
+  return false;
 }
 
 async function ensureBackendRunning() {
@@ -158,44 +227,84 @@ async function ensureBackendRunning() {
     return;
   }
 
-  const jarPath = path.join(__dirname, 'backend', 'target', 'hospitrack-backend-1.0.0.jar');
-  if (!fs.existsSync(jarPath)) {
-    console.log(`  [Backend] Spring Boot JAR not found at ${jarPath}`);
-    console.log(`  [Backend] Build backend: cd backend && mvnw clean package -DskipTests`);
+  const candidateJarPaths = [
+    process.env.JAR_PATH,
+    path.join(__dirname, 'backend', 'target', 'hospitrack-backend-1.0.0.jar'),
+    path.join(__dirname, 'hospitrack-backend-1.0.0.jar'),
+    path.join(__dirname, 'app.jar'),
+    path.join(__dirname, 'backend.jar')
+  ].filter(Boolean);
+
+  let jarPath = null;
+  for (const candidate of candidateJarPaths) {
+    if (fs.existsSync(candidate)) {
+      jarPath = candidate;
+      break;
+    }
+  }
+
+  if (!jarPath) {
+    console.log('  [Backend] Spring Boot JAR not found in candidate paths:');
+    candidateJarPaths.forEach(p => console.log(`    - ${p}`));
+    console.log('  [Backend] For local development: cd backend && mvnw clean package -DskipTests');
     return;
   }
 
-  console.log(`  [Backend] Launching Spring Boot backend on port ${BACKEND_PORT}...`);
-  backendProcess = spawn('java', ['-jar', jarPath], {
+  const dbEnvUpdates = normalizeDatabaseUrl(process.env.DATABASE_URL);
+  const springProfile = process.env.SPRING_PROFILES_ACTIVE || (process.env.NODE_ENV === 'production' ? 'prod' : 'dev');
+
+  const backendEnv = {
+    ...process.env,
+    ...dbEnvUpdates,
+    PORT: String(BACKEND_PORT),
+    SERVER_PORT: String(BACKEND_PORT),
+    SPRING_PROFILES_ACTIVE: springProfile
+  };
+
+  const javaOpts = process.env.JAVA_OPTS
+    ? process.env.JAVA_OPTS.split(' ').filter(Boolean)
+    : ['-Xms128m', '-Xmx512m'];
+
+  const javaArgs = [
+    ...javaOpts,
+    `-Dserver.port=${BACKEND_PORT}`,
+    `-Dspring.profiles.active=${springProfile}`,
+    '-jar',
+    jarPath,
+    `--server.port=${BACKEND_PORT}`,
+    `--spring.profiles.active=${springProfile}`
+  ];
+
+  console.log(`  [Backend] Launching Spring Boot (${springProfile}) on port ${BACKEND_PORT}...`);
+  backendProcess = spawn('java', javaArgs, {
     cwd: __dirname,
+    env: backendEnv,
     stdio: ['ignore', 'pipe', 'pipe']
   });
 
   backendProcess.stdout.on('data', (data) => {
     const msg = data.toString();
-    if (msg.includes('Tomcat started on port') || msg.includes('Started HospitrackApplication')) {
-      console.log(`  [Backend] Spring Boot backend is UP on port ${BACKEND_PORT}`);
-    }
+    process.stdout.write(`  [Spring Boot] ${msg}`);
   });
 
   backendProcess.stderr.on('data', (data) => {
     const msg = data.toString();
-    if (msg.includes('ERROR')) {
-      console.error(`  [Backend Error] ${msg.trim()}`);
-    }
+    process.stderr.write(`  [Spring Boot Error] ${msg}`);
   });
 
   backendProcess.on('exit', (code, signal) => {
     if (code !== null && code !== 0) {
-      console.log(`  [Backend] Process exited with code ${code}`);
+      console.log(`  [Backend] Process exited with code ${code}${signal ? ' (signal: ' + signal + ')' : ''}`);
     }
     backendProcess = null;
   });
+
+  await waitForBackendReady(60000);
 }
 
-function handleProcessExit() {
+function handleProcessExit(signal) {
+  console.log(`\nReceived ${signal || 'exit'}, terminating Hospitrack processes gracefully...`);
   if (backendProcess) {
-    console.log('\nStopping Spring Boot backend...');
     try {
       backendProcess.kill('SIGTERM');
     } catch (e) {}
@@ -204,14 +313,15 @@ function handleProcessExit() {
   process.exit(0);
 }
 
-process.on('SIGINT', handleProcessExit);
-process.on('SIGTERM', handleProcessExit);
+process.on('SIGINT', () => handleProcessExit('SIGINT'));
+process.on('SIGTERM', () => handleProcessExit('SIGTERM'));
 
-server.listen(PORT, async () => {
+server.listen(PORT, HOST, async () => {
   console.log('====================================================');
   console.log('  HOSPITRACK HEALTHCARE PLATFORM LIVE');
-  console.log(`  Frontend URL: http://localhost:${PORT}`);
-  await ensureBackendRunning();
-  console.log('  Environment:  Production / Development');
+  console.log(`  Frontend URL: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+  console.log(`  Proxy Target: http://${BACKEND_HOST}:${BACKEND_PORT}`);
+  console.log(`  Environment:  ${process.env.NODE_ENV || 'production'} (Profile: ${process.env.SPRING_PROFILES_ACTIVE || 'prod'})`);
   console.log('====================================================');
+  await ensureBackendRunning();
 });
