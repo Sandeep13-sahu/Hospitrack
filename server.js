@@ -29,45 +29,205 @@ const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
 
 /**
  * Normalizes PostgreSQL connection URLs for Spring Boot / JDBC compatibility.
- * e.g., Render / Supabase "postgres://" or "postgresql://" -> "jdbc:postgresql://"
+ * Safely parses Supabase / PostgreSQL URIs, URL-encoded credentials, special characters,
+ * and strips literal unresolved placeholders such as "${DATABASE_URL}".
  */
 function normalizeDatabaseUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') return {};
+  if (!rawUrl || typeof rawUrl !== 'string') return { valid: false };
   const trimmed = rawUrl.trim();
-  if (trimmed.startsWith('jdbc:')) {
-    return { DATABASE_URL: trimmed };
+  if (!trimmed || trimmed.startsWith('${') || trimmed.startsWith('$')) {
+    return { valid: false, isPlaceholder: true, raw: trimmed };
   }
-  if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) {
-    try {
-      const parsed = new URL(trimmed);
-      const host = parsed.hostname;
-      const port = parsed.port || '5432';
-      const dbName = parsed.pathname ? parsed.pathname.replace(/^\//, '') : 'hospitrack_prod';
-      const username = decodeURIComponent(parsed.username || '');
-      const password = decodeURIComponent(parsed.password || '');
-      const search = parsed.search || '';
 
-      const jdbcUrl = `jdbc:postgresql://${host}:${port}/${dbName}${search}`;
-      const updates = { DATABASE_URL: jdbcUrl };
-      if (username) {
-        if (!process.env.DB_USERNAME && !process.env.DATABASE_USERNAME) {
-          updates.DB_USERNAME = username;
-          updates.DATABASE_USERNAME = username;
+  let username = '';
+  let password = '';
+  let host = 'localhost';
+  let port = '5432';
+  let dbName = 'postgres';
+  const queryParams = new Map();
+
+  if (trimmed.toLowerCase().startsWith('jdbc:h2:')) {
+    return {
+      valid: true,
+      jdbcUrl: trimmed,
+      username: 'sa',
+      password: '',
+      host: 'localhost',
+      port: 'mem',
+      dbName: 'h2',
+      isH2: true
+    };
+  }
+
+  if (trimmed.toLowerCase().startsWith('jdbc:postgresql:')) {
+    let remainder = trimmed.slice('jdbc:postgresql:'.length);
+    if (remainder.startsWith('//')) {
+      remainder = remainder.slice(2);
+    }
+    const qIdx = remainder.indexOf('?');
+    let queryStr = '';
+    if (qIdx !== -1) {
+      queryStr = remainder.slice(qIdx + 1);
+      remainder = remainder.slice(0, qIdx);
+    }
+    if (queryStr) {
+      for (const part of queryStr.split('&')) {
+        const eq = part.indexOf('=');
+        if (eq !== -1) {
+          queryParams.set(part.slice(0, eq), part.slice(eq + 1));
+        } else if (part) {
+          queryParams.set(part, '');
         }
       }
-      if (password) {
-        if (!process.env.DB_PASSWORD && !process.env.DATABASE_PASSWORD) {
-          updates.DB_PASSWORD = password;
-          updates.DATABASE_PASSWORD = password;
+    }
+    const slashIdx = remainder.indexOf('/');
+    if (slashIdx !== -1) {
+      dbName = remainder.slice(slashIdx + 1) || 'postgres';
+      remainder = remainder.slice(0, slashIdx);
+    }
+    const atIdx = remainder.lastIndexOf('@');
+    if (atIdx !== -1) {
+      const userInfo = remainder.slice(0, atIdx);
+      remainder = remainder.slice(atIdx + 1);
+      const colonIdx = userInfo.indexOf(':');
+      if (colonIdx !== -1) {
+        username = decodeURIComponent(userInfo.slice(0, colonIdx));
+        try { password = decodeURIComponent(userInfo.slice(colonIdx + 1)); }
+        catch (e) { password = userInfo.slice(colonIdx + 1); }
+      } else {
+        username = decodeURIComponent(userInfo);
+      }
+    }
+    const colonIdx = remainder.lastIndexOf(':');
+    if (colonIdx !== -1) {
+      host = remainder.slice(0, colonIdx);
+      port = remainder.slice(colonIdx + 1);
+    } else if (remainder) {
+      host = remainder;
+    }
+  } else if (/^postgres(?:ql)?:\/\//i.test(trimmed)) {
+    let remainder = trimmed.replace(/^postgres(?:ql)?:\/\//i, '');
+    const qIdx = remainder.indexOf('?');
+    let queryStr = '';
+    if (qIdx !== -1) {
+      queryStr = remainder.slice(qIdx + 1);
+      remainder = remainder.slice(0, qIdx);
+    }
+    if (queryStr) {
+      for (const part of queryStr.split('&')) {
+        const eq = part.indexOf('=');
+        if (eq !== -1) {
+          queryParams.set(part.slice(0, eq), part.slice(eq + 1));
+        } else if (part) {
+          queryParams.set(part, '');
         }
       }
-      return updates;
-    } catch (e) {
-      console.warn('  [Backend] Notice: Could not parse DATABASE_URL as URL, prefixing with jdbc::', e.message);
-      return { DATABASE_URL: `jdbc:${trimmed}` };
+    }
+    const slashIdx = remainder.indexOf('/');
+    if (slashIdx !== -1) {
+      dbName = remainder.slice(slashIdx + 1) || 'postgres';
+      remainder = remainder.slice(0, slashIdx);
+    }
+    const atIdx = remainder.lastIndexOf('@');
+    if (atIdx !== -1) {
+      const userInfo = remainder.slice(0, atIdx);
+      remainder = remainder.slice(atIdx + 1);
+      const colonIdx = userInfo.indexOf(':');
+      if (colonIdx !== -1) {
+        username = decodeURIComponent(userInfo.slice(0, colonIdx));
+        try { password = decodeURIComponent(userInfo.slice(colonIdx + 1)); }
+        catch (e) { password = userInfo.slice(colonIdx + 1); }
+      } else {
+        username = decodeURIComponent(userInfo);
+      }
+    }
+    const colonIdx = remainder.lastIndexOf(':');
+    if (colonIdx !== -1) {
+      host = remainder.slice(0, colonIdx);
+      port = remainder.slice(colonIdx + 1);
+    } else if (remainder) {
+      host = remainder;
+    }
+  } else {
+    return { valid: false, raw: trimmed };
+  }
+
+  if (queryParams.has('user') && !username) {
+    username = decodeURIComponent(queryParams.get('user'));
+    queryParams.delete('user');
+  } else {
+    queryParams.delete('user');
+  }
+
+  if (queryParams.has('password') && !password) {
+    password = decodeURIComponent(queryParams.get('password'));
+    queryParams.delete('password');
+  } else {
+    queryParams.delete('password');
+  }
+
+  if (host.includes('supabase') && !queryParams.has('sslmode')) {
+    queryParams.set('sslmode', 'require');
+  }
+  if (port === '6543' && !queryParams.has('prepareThreshold')) {
+    queryParams.set('prepareThreshold', '0');
+  }
+
+  const queryParts = [];
+  for (const [k, v] of queryParams.entries()) {
+    queryParts.push(v ? `${k}=${v}` : k);
+  }
+  const search = queryParts.length ? '?' + queryParts.join('&') : '';
+  const jdbcUrl = `jdbc:postgresql://${host}:${port}/${dbName}${search}`;
+
+  return {
+    valid: true,
+    jdbcUrl,
+    username,
+    password,
+    host,
+    port,
+    dbName,
+    isH2: false
+  };
+}
+
+/**
+ * Discovers database connection parameters across all common environment variables.
+ */
+function resolveDatabaseConfig() {
+  const candidateKeys = [
+    'DATABASE_URL',
+    'SPRING_DATASOURCE_URL',
+    'SUPABASE_DATABASE_URL',
+    'POSTGRES_URL',
+    'POSTGRESQL_URL',
+    'DB_URL',
+    'JDBC_DATABASE_URL'
+  ];
+
+  let rawUrl = '';
+  let foundKey = '';
+  for (const key of candidateKeys) {
+    const val = process.env[key];
+    if (val && typeof val === 'string' && val.trim() && !val.trim().startsWith('${') && !val.trim().startsWith('$')) {
+      rawUrl = val.trim();
+      foundKey = key;
+      break;
     }
   }
-  return {};
+
+  const normalized = normalizeDatabaseUrl(rawUrl);
+
+  const finalUsername = process.env.DB_USERNAME || process.env.DATABASE_USERNAME || process.env.SPRING_DATASOURCE_USERNAME || normalized.username || '';
+  const finalPassword = process.env.DB_PASSWORD || process.env.DATABASE_PASSWORD || process.env.SPRING_DATASOURCE_PASSWORD || normalized.password || '';
+
+  return {
+    ...normalized,
+    foundKey,
+    username: finalUsername,
+    password: finalPassword
+  };
 }
 
 function checkBackendHealth(host, port) {
@@ -256,16 +416,46 @@ async function ensureBackendRunning() {
     return;
   }
 
-  const dbEnvUpdates = normalizeDatabaseUrl(process.env.DATABASE_URL);
+  const dbConfig = resolveDatabaseConfig();
   const springProfile = process.env.SPRING_PROFILES_ACTIVE || (process.env.NODE_ENV === 'production' ? 'prod' : 'dev');
 
   const backendEnv = {
     ...process.env,
-    ...dbEnvUpdates,
     PORT: String(BACKEND_PORT),
     SERVER_PORT: String(BACKEND_PORT),
     SPRING_PROFILES_ACTIVE: springProfile
   };
+
+  // If a valid database configuration was resolved, inject clean variables
+  if (dbConfig.valid && dbConfig.jdbcUrl) {
+    backendEnv.DATABASE_URL = dbConfig.jdbcUrl;
+    backendEnv.SPRING_DATASOURCE_URL = dbConfig.jdbcUrl;
+    if (dbConfig.username) {
+      backendEnv.DB_USERNAME = dbConfig.username;
+      backendEnv.DATABASE_USERNAME = dbConfig.username;
+      backendEnv.SPRING_DATASOURCE_USERNAME = dbConfig.username;
+    }
+    if (dbConfig.password) {
+      backendEnv.DB_PASSWORD = dbConfig.password;
+      backendEnv.DATABASE_PASSWORD = dbConfig.password;
+      backendEnv.SPRING_DATASOURCE_PASSWORD = dbConfig.password;
+    }
+  } else {
+    // Prevent literal unresolved placeholders such as "${DATABASE_URL}" from polluting Spring Boot
+    if (backendEnv.DATABASE_URL && (backendEnv.DATABASE_URL.startsWith('${') || backendEnv.DATABASE_URL.startsWith('$'))) {
+      delete backendEnv.DATABASE_URL;
+    }
+    if (backendEnv.SPRING_DATASOURCE_URL && (backendEnv.SPRING_DATASOURCE_URL.startsWith('${') || backendEnv.SPRING_DATASOURCE_URL.startsWith('$'))) {
+      delete backendEnv.SPRING_DATASOURCE_URL;
+    }
+    if (springProfile === 'prod') {
+      console.warn('======================================================================');
+      console.warn('  [Backend] NOTICE: No valid external PostgreSQL URL configured.');
+      console.warn('  [Backend] Please set DATABASE_URL in your Render Web Service settings.');
+      console.warn('  [Backend] Example: postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require');
+      console.warn('======================================================================');
+    }
+  }
 
   // Optimized memory profile for Render Free 512MB cgroup limit
   const defaultJavaOpts = [
@@ -290,6 +480,27 @@ async function ensureBackendRunning() {
     `--server.port=${BACKEND_PORT}`,
     `--spring.profiles.active=${springProfile}`
   ];
+
+  // Pass validated database parameters directly to Spring Boot via CLI arguments & System Properties
+  if (dbConfig.valid && dbConfig.jdbcUrl) {
+    javaArgs.push(`-Dspring.datasource.url=${dbConfig.jdbcUrl}`);
+    javaArgs.push(`--spring.datasource.url=${dbConfig.jdbcUrl}`);
+
+    if (dbConfig.username) {
+      javaArgs.push(`-Dspring.datasource.username=${dbConfig.username}`);
+      javaArgs.push(`--spring.datasource.username=${dbConfig.username}`);
+    }
+    if (dbConfig.password) {
+      javaArgs.push(`-Dspring.datasource.password=${dbConfig.password}`);
+      javaArgs.push(`--spring.datasource.password=${dbConfig.password}`);
+    }
+
+    const maskedUser = dbConfig.username
+      ? (dbConfig.username.length > 4 ? dbConfig.username.slice(0, 4) + '***' : '***')
+      : 'default';
+    console.log(`  [Backend] Database Target: ${dbConfig.jdbcUrl}`);
+    console.log(`  [Backend] Database User:   ${maskedUser} (Credentials configured: ${dbConfig.password ? 'YES' : 'NO'})`);
+  }
 
   console.log(`  [Backend] Launching Spring Boot (${springProfile}) on port ${BACKEND_PORT}...`);
   backendProcess = spawn('java', javaArgs, {
@@ -332,12 +543,20 @@ function handleProcessExit(signal) {
 process.on('SIGINT', () => handleProcessExit('SIGINT'));
 process.on('SIGTERM', () => handleProcessExit('SIGTERM'));
 
-server.listen(PORT, HOST, async () => {
-  console.log('====================================================');
-  console.log('  HOSPITRACK HEALTHCARE PLATFORM LIVE');
-  console.log(`  Frontend URL: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
-  console.log(`  Proxy Target: http://${BACKEND_HOST}:${BACKEND_PORT}`);
-  console.log(`  Environment:  ${process.env.NODE_ENV || 'production'} (Profile: ${process.env.SPRING_PROFILES_ACTIVE || 'prod'})`);
-  console.log('====================================================');
-  await ensureBackendRunning();
-});
+if (require.main === module) {
+  server.listen(PORT, HOST, async () => {
+    console.log('====================================================');
+    console.log('  HOSPITRACK HEALTHCARE PLATFORM LIVE');
+    console.log(`  Frontend URL: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+    console.log(`  Proxy Target: http://${BACKEND_HOST}:${BACKEND_PORT}`);
+    console.log(`  Environment:  ${process.env.NODE_ENV || 'production'} (Profile: ${process.env.SPRING_PROFILES_ACTIVE || 'prod'})`);
+    console.log('====================================================');
+    await ensureBackendRunning();
+  });
+}
+
+module.exports = {
+  normalizeDatabaseUrl,
+  resolveDatabaseConfig,
+  server
+};

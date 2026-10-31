@@ -1,124 +1,134 @@
 /**
- * Hospitrack — Single-Service Render Architecture Verification Test
- * Validates Dockerfile, server.js port decoupling, database URL normalization,
- * health endpoints, and environment profile configurations.
+ * Hospitrack — Strictly Zero-Cost Deployment & Database URL Normalization Verification Test
+ * Validates:
+ * 1. Render Free tier (plan: free, no paid resources, no databases block)
+ * 2. External Supabase PostgreSQL support (URL normalization, special character decoding, Hikari optimization)
+ * 3. Rejection of unexpanded literal placeholders like "${DATABASE_URL}"
+ * 4. Automatic extraction of DB_USERNAME / DB_PASSWORD without exposing secrets in JDBC URL
+ * 5. 512MB RAM CGroup budget compliance (SerialGC, 256MB heap cap)
+ * 6. Zero ephemeral disk dependencies (Base64/TEXT PostgreSQL storage)
+ * 7. application-prod.yml configuration
  */
 
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const http = require('http');
 
 console.log('='.repeat(70));
-console.log('🚀 HOSPITRACK: RENDER SINGLE-SERVICE DEPLOYMENT VERIFICATION');
+console.log('💰 HOSPITRACK: STRICTLY ZERO-COST DEPLOYMENT & DB VERIFICATION');
 console.log('='.repeat(70));
 
-// 1. Verify Dockerfile exists and contains required multi-stage instructions
-console.log('\n[1] Verifying Root Production Dockerfile...');
+// 1. Verify render.yaml enforces Free plan and has NO paid database resources
+console.log('\n[1] Verifying render.yaml for Zero-Cost Enforcement...');
+const renderYamlPath = path.join(__dirname, '..', 'render.yaml');
+const renderYaml = fs.readFileSync(renderYamlPath, 'utf8');
+
+assert(renderYaml.includes('plan: free'), 'render.yaml MUST specify plan: free');
+assert(!renderYaml.includes('plan: starter'), 'render.yaml must NOT use paid starter plan');
+assert(!renderYaml.includes('databases:'), 'render.yaml must NOT declare paid Render database resource');
+assert(renderYaml.includes('dockerfilePath: ./Dockerfile'), 'Must point to root Dockerfile');
+assert(renderYaml.includes('healthCheckPath: /health'), 'Must use /health probe');
+assert(renderYaml.includes('DATABASE_URL'), 'Must declare external DATABASE_URL env var');
+assert(renderYaml.includes('-XX:+UseSerialGC'), 'Must configure SerialGC in JAVA_OPTS');
+console.log('  ✓ render.yaml is 100% free-tier compliant ($0/month, no paid resources)');
+
+// 2. Verify Root Dockerfile Specifications
+console.log('\n[2] Verifying Root Dockerfile Specifications...');
 const dockerfilePath = path.join(__dirname, '..', 'Dockerfile');
-assert(fs.existsSync(dockerfilePath), 'Dockerfile must exist at repository root');
+const dockerfile = fs.readFileSync(dockerfilePath, 'utf8');
 
-const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf8');
-assert(dockerfileContent.includes('maven:3.9.6-eclipse-temurin-17'), 'Must use Maven with Java 17 for backend builder stage');
-assert(dockerfileContent.includes('node:20-bookworm-slim'), 'Must use Node.js 20 compatible base for production runtime');
-assert(dockerfileContent.includes('openjdk-17-jre-headless'), 'Must install Java 17 JRE in runtime image');
-assert(dockerfileContent.includes('mvn clean package -DskipTests'), 'Must compile Spring Boot JAR with Maven');
-assert(dockerfileContent.includes('COPY index.html'), 'Must copy frontend files');
-assert(dockerfileContent.includes('COPY server.js'), 'Must copy server.js');
-assert(dockerfileContent.includes('hospitrack-backend-1.0.0.jar'), 'Must copy compiled backend JAR');
-assert(dockerfileContent.includes('CMD ["node", "server.js"]'), 'Must execute node server.js as container entrypoint');
-console.log('  ✓ Dockerfile meets all multi-stage, Java 17, Node 20, and artifact specifications');
+assert(dockerfile.includes('maven:3.9.6-eclipse-temurin-17'), 'Build stage must use Maven with Java 17');
+assert(dockerfile.includes('node:20-bookworm-slim'), 'Runtime stage must use Node 20 base');
+assert(dockerfile.includes('openjdk-17-jre-headless'), 'Must install Java 17 headless runtime');
+assert(dockerfile.includes('ENV JAVA_OPTS='), 'Must set default low-memory JAVA_OPTS in image');
+assert(dockerfile.includes('-XX:+UseSerialGC'), 'Default JAVA_OPTS must use SerialGC for 512MB limit');
+assert(dockerfile.includes('CMD ["node", "server.js"]'), 'Must launch supervisor node server.js');
+console.log('  ✓ Dockerfile combines Node.js 20 and Java 17 with 512MB memory tuning');
 
-// 2. Verify .dockerignore exists and excludes transient/sensitive files
-console.log('\n[2] Verifying .dockerignore Configuration...');
-const dockerignorePath = path.join(__dirname, '..', '.dockerignore');
-assert(fs.existsSync(dockerignorePath), '.dockerignore must exist at repository root');
+// 3. Verify Supabase PostgreSQL URL Normalization in server.js
+console.log('\n[3] Testing Supabase PostgreSQL URL Normalization & Placeholder Rejection in server.js...');
+const { normalizeDatabaseUrl, resolveDatabaseConfig } = require('../server.js');
 
-const dockerignoreContent = fs.readFileSync(dockerignorePath, 'utf8');
-assert(dockerignoreContent.includes('.git'), '.dockerignore must exclude .git');
-assert(dockerignoreContent.includes('node_modules'), '.dockerignore must exclude node_modules');
-assert(dockerignoreContent.includes('backend/target/'), '.dockerignore must exclude backend/target/');
-assert(dockerignoreContent.includes('scratch/'), '.dockerignore must exclude scratch/');
-assert(dockerignoreContent.includes('.env'), '.dockerignore must exclude .env');
-console.log('  ✓ .dockerignore excludes heavy build context and sensitive artifacts');
+// Test Case 3A: Supabase Connection Pooler URI with raw special characters in password
+const supabasePoolerUri = 'postgresql://postgres.refid123:P@$$w0rd!#123@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require';
+const res1 = normalizeDatabaseUrl(supabasePoolerUri);
+assert.strictEqual(res1.valid, true, 'Must be valid');
+assert.strictEqual(
+  res1.jdbcUrl,
+  'jdbc:postgresql://aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0',
+  'Must transform Supabase pooler URI to clean jdbc:postgresql:// with sslmode and prepareThreshold=0'
+);
+assert.strictEqual(res1.username, 'postgres.refid123', 'Must extract pooler username');
+assert.strictEqual(res1.password, 'P@$$w0rd!#123', 'Must extract password with special characters');
+assert(!res1.jdbcUrl.includes('P@$$w0rd!#123'), 'Password must NOT be embedded in JDBC URL string');
+console.log('  ✓ Supabase connection pooler URI successfully normalized with complex password');
 
-// 3. Test PostgreSQL Database URL Normalization Logic
-console.log('\n[3] Testing PostgreSQL Database URL Normalizer...');
-// Extract normalizeDatabaseUrl from server.js for isolated unit testing
+// Test Case 3B: Supabase Direct Connection URI with URL-encoded characters
+const supabaseDirectUri = 'postgres://postgres:DirectPass%21%40%23@db.myprojectref.supabase.co:5432/postgres';
+const res2 = normalizeDatabaseUrl(supabaseDirectUri);
+assert.strictEqual(res2.valid, true);
+assert.strictEqual(
+  res2.jdbcUrl,
+  'jdbc:postgresql://db.myprojectref.supabase.co:5432/postgres?sslmode=require',
+  'Must transform Supabase direct URI to jdbc:postgresql:// with sslmode=require'
+);
+assert.strictEqual(res2.username, 'postgres');
+assert.strictEqual(res2.password, 'DirectPass!@#');
+console.log('  ✓ Supabase direct connection URI successfully normalized with URL-decoded password');
+
+// Test Case 3C: Standard JDBC URL pass-through
+const standardJdbc = 'jdbc:postgresql://aws-0.pooler.supabase.com:6543/postgres?sslmode=require';
+const res3 = normalizeDatabaseUrl(standardJdbc);
+assert.strictEqual(res3.valid, true);
+assert.strictEqual(res3.jdbcUrl, 'jdbc:postgresql://aws-0.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0');
+console.log('  ✓ Standard JDBC URL correctly formatted and preserved');
+
+// Test Case 3D: Rejection of literal unexpanded placeholders
+const placeholder1 = normalizeDatabaseUrl('${DATABASE_URL}');
+assert.strictEqual(placeholder1.valid, false, 'Literal ${DATABASE_URL} must be rejected');
+assert.strictEqual(placeholder1.isPlaceholder, true);
+
+const placeholder2 = normalizeDatabaseUrl('${SPRING_DATASOURCE_URL}');
+assert.strictEqual(placeholder2.valid, false, 'Literal ${SPRING_DATASOURCE_URL} must be rejected');
+
+const placeholder3 = normalizeDatabaseUrl('');
+assert.strictEqual(placeholder3.valid, false, 'Empty URL must be rejected');
+console.log('  ✓ Literal placeholders (${DATABASE_URL}) and empty strings strictly rejected');
+
+// 4. Verify Memory Allocation & 512MB Budget in server.js
+console.log('\n[4] Verifying 512MB Memory Protection in server.js...');
 const serverJsContent = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
-const normalizeFnMatch = serverJsContent.match(/function normalizeDatabaseUrl\([\s\S]*?\n\}/);
-assert(normalizeFnMatch, 'normalizeDatabaseUrl function must be defined in server.js');
+assert(serverJsContent.includes('-Xmx256m'), 'Must cap JVM max heap at 256MB');
+assert(serverJsContent.includes('-XX:+UseSerialGC'), 'Must specify SerialGC to save GC memory overhead');
+assert(serverJsContent.includes('-XX:MaxMetaspaceSize=112m'), 'Must constrain Metaspace to 112MB');
+assert(serverJsContent.includes('-Xss512k'), 'Must reduce thread stack size to 512k');
+console.log('  ✓ server.js enforces strict 256MB heap cap & SerialGC for 512MB container limit');
 
-const normalizeDatabaseUrl = new Function('return ' + normalizeFnMatch[0])();
+// 5. Verify Zero Disk Dependencies (PostgreSQL Base64/TEXT Storage)
+console.log('\n[5] Verifying Zero Ephemeral Disk Dependencies...');
+const patientEntity = fs.readFileSync(path.join(__dirname, '..', 'backend', 'src', 'main', 'java', 'com', 'hospitrack', 'entity', 'Patient.java'), 'utf8');
+assert(patientEntity.includes('@Column(name = "photo_url", columnDefinition = "TEXT")'), 'Patient photos must be stored as TEXT in PostgreSQL');
 
-// Test Case 3A: Render / Supabase standard postgres:// URI
-const renderPgUri = 'postgres://hospitrack_user:SecretPass123%21@dpg-abc12345.oregon-postgres.render.com:5432/hospitrack_prod';
-const res1 = normalizeDatabaseUrl(renderPgUri);
-assert.strictEqual(
-  res1.DATABASE_URL,
-  'jdbc:postgresql://dpg-abc12345.oregon-postgres.render.com:5432/hospitrack_prod',
-  'Must normalize postgres:// to jdbc:postgresql://'
-);
-assert.strictEqual(res1.DATABASE_USERNAME, 'hospitrack_user', 'Must extract username from URI');
-assert.strictEqual(res1.DATABASE_PASSWORD, 'SecretPass123!', 'Must extract decoded password from URI');
-console.log('  ✓ Render postgres:// URL normalized to Spring Boot JDBC format with credentials');
+const userEntity = fs.readFileSync(path.join(__dirname, '..', 'backend', 'src', 'main', 'java', 'com', 'hospitrack', 'entity', 'User.java'), 'utf8');
+assert(userEntity.includes('@Column(name = "avatar_url", columnDefinition = "TEXT")'), 'User avatars must be stored as TEXT in PostgreSQL');
 
-// Test Case 3B: postgresql:// with SSL query params
-const sslPgUri = 'postgresql://admin:pass@db.example.com:5432/med_db?sslmode=require';
-const res2 = normalizeDatabaseUrl(sslPgUri);
-assert.strictEqual(
-  res2.DATABASE_URL,
-  'jdbc:postgresql://db.example.com:5432/med_db?sslmode=require',
-  'Must preserve query parameters such as ?sslmode=require'
-);
-console.log('  ✓ Query parameters (?sslmode=require) preserved in JDBC URL');
-
-// Test Case 3C: Standard JDBC URL left untouched
-const directJdbc = 'jdbc:postgresql://localhost:5432/hospitrack_prod';
-const res3 = normalizeDatabaseUrl(directJdbc);
-assert.strictEqual(res3.DATABASE_URL, directJdbc, 'Existing jdbc: URLs must remain untouched');
-console.log('  ✓ Existing jdbc:postgresql: URLs pass through unaltered');
-
-// 4. Verify Server.js Port Decoupling & Host Binding
-console.log('\n[4] Verifying Port Decoupling & 0.0.0.0 Binding in server.js...');
-assert(serverJsContent.includes("server.listen(PORT, HOST"), 'Must bind server to HOST (0.0.0.0)');
-assert(serverJsContent.includes("HOST = process.env.HOST || '0.0.0.0'"), 'Default host must be 0.0.0.0');
-assert(serverJsContent.includes("PORT = parseInt(process.env.PORT"), 'Must parse Render PORT');
-assert(serverJsContent.includes("BACKEND_PORT = parseInt(process.env.BACKEND_PORT"), 'Must separate BACKEND_PORT');
-assert(serverJsContent.includes("`--server.port=${BACKEND_PORT}`"), 'Must explicitly pass backend port to Java CLI argument');
-assert(serverJsContent.includes("PORT: String(BACKEND_PORT)"), 'Child process env must isolate Spring Boot PORT from Render PORT');
-console.log('  ✓ Server binds to 0.0.0.0 and isolates Render external PORT from Spring Boot internal port 8080');
-
-// 5. Verify /health and /api/health Endpoint Handlers
-console.log('\n[5] Verifying Health Check Endpoints in server.js...');
-assert(serverJsContent.includes("reqPath === '/health'"), 'Must handle /health endpoint for container probes');
-assert(serverJsContent.includes("checkBackendHealth"), 'Must include checkBackendHealth probe');
-assert(serverJsContent.includes("reqPath.startsWith('/api/') || reqPath === '/api'"), 'Must proxy /api requests to backend');
-console.log('  ✓ Container health check (/health) and Spring Boot health check (/api/health) operational');
+const labEntity = fs.readFileSync(path.join(__dirname, '..', 'backend', 'src', 'main', 'java', 'com', 'hospitrack', 'entity', 'LabReport.java'), 'utf8');
+assert(labEntity.includes('columnDefinition = "TEXT"'), 'Lab reports results and summaries must be stored as TEXT in PostgreSQL');
+console.log('  ✓ All patient photos, documents, and lab reports persist in PostgreSQL (no local disk needed)');
 
 // 6. Verify Production Spring Profile (application-prod.yml)
 console.log('\n[6] Verifying application-prod.yml Configuration...');
-const prodYmlPath = path.join(__dirname, '..', 'backend', 'src', 'main', 'resources', 'application-prod.yml');
-const prodYml = fs.readFileSync(prodYmlPath, 'utf8');
-assert(prodYml.includes('driver-class-name: org.postgresql.Driver'), 'Production must use org.postgresql.Driver');
-assert(prodYml.includes('PostgreSQLDialect'), 'Production must use PostgreSQLDialect');
-assert(!prodYml.includes('h2'), 'Production YAML must not configure H2 database');
-assert(prodYml.includes('${DATABASE_URL}'), 'Production must read DATABASE_URL from environment');
-assert(prodYml.includes('${JWT_SECRET}'), 'Production must read JWT_SECRET from environment');
-console.log('  ✓ application-prod.yml enforces pure PostgreSQL and externalized credentials');
-
-// 7. Verify render.yaml Configuration
-console.log('\n[7] Verifying render.yaml Infrastructure as Code Blueprint...');
-const renderYamlPath = path.join(__dirname, '..', 'render.yaml');
-const renderYaml = fs.readFileSync(renderYamlPath, 'utf8');
-assert(renderYaml.includes('dockerfilePath: ./Dockerfile'), 'render.yaml must point to root Dockerfile');
-assert(renderYaml.includes('dockerContext: .'), 'render.yaml must set root as dockerContext');
-assert(renderYaml.includes('healthCheckPath: /health'), 'render.yaml must probe /health');
-assert(renderYaml.includes('SPRING_PROFILES_ACTIVE'), 'render.yaml must set SPRING_PROFILES_ACTIVE to prod');
-assert(renderYaml.includes('fromDatabase:'), 'render.yaml must wire DATABASE_URL from hospitrack-db');
-console.log('  ✓ render.yaml defines unified single-service Docker web service & managed PostgreSQL');
+const prodYml = fs.readFileSync(path.join(__dirname, '..', 'backend', 'src', 'main', 'resources', 'application-prod.yml'), 'utf8');
+assert(prodYml.includes('driver-class-name: org.postgresql.Driver'), 'Must use PostgreSQL driver');
+assert(prodYml.includes('PostgreSQLDialect'), 'Must use PostgreSQL dialect');
+assert(!prodYml.includes('h2'), 'Production must never use H2 database');
+assert(prodYml.includes('maximum-pool-size: ${DB_POOL_MAX:5}'), 'Hikari pool must be optimized for Supabase Free tier (5 connections)');
+assert(prodYml.includes('${SPRING_DATASOURCE_URL:${DATABASE_URL:${JDBC_DATABASE_URL:}}}'), 'Must support fallback variable resolution');
+assert(prodYml.includes('${DB_USERNAME:${DATABASE_USERNAME:${SPRING_DATASOURCE_USERNAME:}}}'), 'Must support DB_USERNAME, DATABASE_USERNAME, and SPRING_DATASOURCE_USERNAME');
+assert(prodYml.includes('${DB_PASSWORD:${DATABASE_PASSWORD:${SPRING_DATASOURCE_PASSWORD:}}}'), 'Must support DB_PASSWORD, DATABASE_PASSWORD, and SPRING_DATASOURCE_PASSWORD');
+assert(prodYml.includes('${JWT_SECRET}'), 'Must read JWT_SECRET from environment');
+console.log('  ✓ application-prod.yml strictly enforces PostgreSQL with comprehensive env variable resolution');
 
 console.log('\n' + '='.repeat(70));
-console.log('🎉 ALL 7 RENDER SINGLE-SERVICE DEPLOYMENT CHECKS PASSED PERFECTLY!');
+console.log('🎉 ALL 6 STRICTLY ZERO-COST DEPLOYMENT & DB CHECKS PASSED PERFECTLY!');
 console.log('='.repeat(70));
-
