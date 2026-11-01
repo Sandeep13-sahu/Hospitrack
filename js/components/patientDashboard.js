@@ -2952,10 +2952,10 @@ window.showConsultationDetailModal = function(consultationId) {
   const specialty = c.department || c.specialty || (c.doctor ? c.doctor.specialty : 'General Medicine');
   const hospName = c.hospitalName || (c.hospital ? c.hospital.name : 'City General Hospital');
   const dateStr = c.visitDate ? (typeof formatDateTime === 'function' ? formatDateTime(c.visitDate) : new Date(c.visitDate).toLocaleString()) : new Date().toLocaleString();
-  const bpVal = c.bp || c.bloodPressure || '120/80 mmHg';
-  const hrVal = c.heartRate || c.pulse || '74 bpm';
-  const spo2Val = c.spO2 || c.spo2 || '99%';
-  const tempVal = c.temperature || '98.6 °F';
+  const bpVal = c.bp || c.bloodPressure || (c.bloodPressureSystolic && c.bloodPressureDiastolic ? (c.bloodPressureSystolic + '/' + c.bloodPressureDiastolic + ' mmHg') : '—');
+  const hrVal = c.heartRate || c.pulse ? (c.heartRate || c.pulse) + ' bpm' : '—';
+  const spo2Val = c.spO2 || c.spo2 || c.oxygenSaturation ? (c.spO2 || c.spo2 || c.oxygenSaturation) + '%' : '—';
+  const tempVal = c.temperature || c.bodyTemperature ? (c.temperature || c.bodyTemperature) + ' °F' : '—';
 
   const modalHtml = `
     <div id="consultationDetailModal" class="modal-overlay open" role="dialog" aria-modal="true" onclick="if (event.target === this) { window.closeGlobalModal('consultationDetailModal'); if (window.closeModal) window.closeModal('consultationDetailModal'); }">

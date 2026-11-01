@@ -39,6 +39,15 @@ public class PatientRequest {
 
     private String photoUrl;
 
+    // Intake Triage Telemetry Fields
+    private Integer bloodPressureSystolic;
+    private Integer bloodPressureDiastolic;
+    private Integer heartRate;
+    private Integer oxygenSaturation;
+    private Double bodyTemperature;
+    private String rhythmNotes;
+    private String intakeSource;
+
     public PatientRequest() {}
 
     public String getName() { return name; }
@@ -94,4 +103,37 @@ public class PatientRequest {
 
     public String getPhotoUrl() { return photoUrl; }
     public void setPhotoUrl(String photoUrl) { this.photoUrl = photoUrl; }
+
+    public Integer getBloodPressureSystolic() { return bloodPressureSystolic; }
+    public void setBloodPressureSystolic(Integer bloodPressureSystolic) { this.bloodPressureSystolic = bloodPressureSystolic; }
+
+    public Integer getBloodPressureDiastolic() { return bloodPressureDiastolic; }
+    public void setBloodPressureDiastolic(Integer bloodPressureDiastolic) { this.bloodPressureDiastolic = bloodPressureDiastolic; }
+
+    public Integer getHeartRate() { return heartRate; }
+    public void setHeartRate(Integer heartRate) { this.heartRate = heartRate; }
+
+    public Integer getOxygenSaturation() { return oxygenSaturation; }
+    public void setOxygenSaturation(Integer oxygenSaturation) { this.oxygenSaturation = oxygenSaturation; }
+    public void setSpo2(Integer spo2) { this.oxygenSaturation = spo2; }
+
+    public Double getBodyTemperature() { return bodyTemperature; }
+    public void setBodyTemperature(Double bodyTemperature) { this.bodyTemperature = bodyTemperature; }
+    public void setTemperature(Double temp) { this.bodyTemperature = temp; }
+
+    public String getRhythmNotes() { return rhythmNotes; }
+    public void setRhythmNotes(String rhythmNotes) { this.rhythmNotes = rhythmNotes; }
+
+    public String getIntakeSource() { return intakeSource; }
+    public void setIntakeSource(String intakeSource) { this.intakeSource = intakeSource; }
+
+    public void setBloodPressure(String bp) {
+        if (bp != null && bp.contains("/")) {
+            String[] parts = bp.split("/");
+            try {
+                this.bloodPressureSystolic = Integer.parseInt(parts[0].trim());
+                this.bloodPressureDiastolic = Integer.parseInt(parts[1].trim());
+            } catch (Exception ignored) {}
+        }
+    }
 }

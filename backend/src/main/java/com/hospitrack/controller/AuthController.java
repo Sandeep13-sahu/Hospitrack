@@ -6,6 +6,7 @@ import com.hospitrack.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -41,23 +42,26 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserDto>> register(@RequestBody RegisterRequest request) {
-        return ResponseEntity.status(403).body(ApiResponse.error("Public self-registration is disabled. Healthcare accounts must be provisioned by authorized Hospital Administrators or Super Administrators."));
+    public ResponseEntity<ApiResponse<UserDto>> register(@Valid @RequestBody RegisterRequest request) {
+        ApiResponse<UserDto> result = authService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @PostMapping("/register/patient")
-    public ResponseEntity<ApiResponse<UserDto>> registerPatient(@RequestBody RegisterRequest request) {
-        return ResponseEntity.status(403).body(ApiResponse.error("Public self-registration is disabled. Patient accounts are created during hospital admission and verified by hospital staff."));
+    public ResponseEntity<ApiResponse<UserDto>> registerPatient(@Valid @RequestBody RegisterRequest request) {
+        ApiResponse<UserDto> result = authService.registerPatient(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @PostMapping("/register/hospital")
-    public ResponseEntity<ApiResponse<UserDto>> registerHospital(@RequestBody RegisterRequest request) {
-        return ResponseEntity.status(403).body(ApiResponse.error("Public hospital self-registration is disabled. New healthcare facilities must be onboarded by the Super Administrator."));
+    public ResponseEntity<ApiResponse<UserDto>> registerHospital(@Valid @RequestBody RegisterRequest request) {
+        ApiResponse<UserDto> result = authService.registerHospital(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @PostMapping("/register/doctor")
     public ResponseEntity<ApiResponse<UserDto>> registerDoctor(@RequestBody RegisterRequest request) {
-        return ResponseEntity.status(403).body(ApiResponse.error("Public doctor self-registration is disabled. Doctors must be provisioned and assigned by their Hospital Administrator."));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("Direct public self-registration for doctors is disabled. Doctors must be provisioned and assigned by their Hospital Administrator."));
     }
 
     @PostMapping("/verify-email")

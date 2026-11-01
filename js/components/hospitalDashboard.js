@@ -3476,7 +3476,48 @@ window.openRegisterPatientModal = async function() {
             </div>
           </div>
 
-          <!-- ATTENDING PHYSICIAN -->
+          <!-- INTAKE TRIAGE TELEMETRY (SECTION 2) -->
+          <div style="margin-bottom: 20px; background: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); border-radius: var(--radius-md, 8px); padding: 14px 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--primary, #0284c7);">
+                INTAKE TRIAGE TELEMETRY &amp; VITALS
+              </div>
+              <span class="badge badge-subtle font-xs" style="font-size: 0.72rem; padding: 2px 8px;">Baseline Assessment</span>
+            </div>
+            <div class="text-secondary font-xs mb-12" style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 12px;">
+              Clinical intake vitals measured upon admission. Leave blank if triage is deferred to bedside nursing.
+            </div>
+            <div class="form-grid-3col" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatBPSystolic">BP Systolic (mmHg)</label>
+                <input type="number" id="admitPatBPSystolic" class="form-control font-sm" placeholder="e.g. 138" min="40" max="300">
+              </div>
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatBPDiastolic">BP Diastolic (mmHg)</label>
+                <input type="number" id="admitPatBPDiastolic" class="form-control font-sm" placeholder="e.g. 88" min="20" max="200">
+              </div>
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatHeartRate">Heart Rate (bpm)</label>
+                <input type="number" id="admitPatHeartRate" class="form-control font-sm" placeholder="e.g. 82" min="20" max="300">
+              </div>
+            </div>
+            <div class="form-grid-3col" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatSpO2">Oxygen Sat. (SpO2 %)</label>
+                <input type="number" id="admitPatSpO2" class="form-control font-sm" placeholder="e.g. 97" min="50" max="100">
+              </div>
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatTemp">Body Temp (°F)</label>
+                <input type="number" id="admitPatTemp" step="0.1" class="form-control font-sm" placeholder="e.g. 99.1" min="70" max="115">
+              </div>
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatRhythmNotes">Cardiac Rhythm / Notes</label>
+                <input type="text" id="admitPatRhythmNotes" class="form-control font-sm" placeholder="e.g. Regular sinus rhythm">
+              </div>
+            </div>
+          </div>
+
+          <!-- ATTENDING PHYSICIAN ASSIGNMENT (SECTION 3) -->
           <div style="margin-bottom: 20px; background: var(--bg-surface-alt, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); border-radius: var(--radius-md, 8px); padding: 14px 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <div>
@@ -3485,9 +3526,20 @@ window.openRegisterPatientModal = async function() {
               </div>
               <button type="button" class="btn btn-link btn-sm" onclick="loadHospitalPhysiciansDropdown()" style="padding: 4px 8px; font-size: 0.78rem; text-decoration: none; color: var(--primary);">🔄 Refresh physicians</button>
             </div>
-            <select id="admitPatDoctor" class="form-control mt-2" required>
-              <option value="">Select attending physician...</option>
-            </select>
+            <div class="form-grid-2col" style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px; margin-top: 8px;">
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatDeptFilter">Filter Department</label>
+                <select id="admitPatDeptFilter" class="form-control font-sm" onchange="filterHospitalPhysiciansByDept(this.value)">
+                  <option value="">All Departments</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label font-xs" for="admitPatDoctor">Doctor <span class="text-danger">*</span></label>
+                <select id="admitPatDoctor" class="form-control font-sm" required>
+                  <option value="">Select attending physician...</option>
+                </select>
+              </div>
+            </div>
             <div id="admitPatDoctorNotice" class="text-muted font-xs mt-4">Authorized medical practitioner from your hospital facility.</div>
           </div>
 
@@ -3553,10 +3605,35 @@ window.checkPasswordStrength = function(pwd, displayId) {
 };
 
 let _isLoadingHospitalDoctors = false;
+let _cachedHospitalDocs = [];
+
+window.filterHospitalPhysiciansByDept = function(dept) {
+  const docSelect = document.getElementById('admitPatDoctor');
+  if (!docSelect || !_cachedHospitalDocs) return;
+  const safeEscape = (str) => {
+    if (typeof window.escapeHtml === 'function') return window.escapeHtml(str);
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  };
+
+  const filtered = dept
+    ? _cachedHospitalDocs.filter(d => (d.department === dept || d.specialty === dept))
+    : _cachedHospitalDocs;
+
+  if (filtered.length === 0) {
+    docSelect.innerHTML = '<option value="">No physicians in this department</option>';
+  } else {
+    docSelect.innerHTML = `
+      <option value="">Select attending physician (${filtered.length} available)</option>
+      ${filtered.map(d => `<option value="${safeEscape(d.id)}">${safeEscape(d.name)} • ${safeEscape(d.specialty || d.department || 'General Medicine')}</option>`).join('')}
+    `;
+  }
+};
 
 window.loadHospitalPhysiciansDropdown = async function() {
   const docSelect = document.getElementById('admitPatDoctor');
   const noticeEl = document.getElementById('admitPatDoctorNotice');
+  const deptSelect = document.getElementById('admitPatDeptFilter');
   if (!docSelect) return;
 
   if (_isLoadingHospitalDoctors) return;
@@ -3593,6 +3670,7 @@ window.loadHospitalPhysiciansDropdown = async function() {
 
     // Filter to ensure only active doctors are displayed
     const activeDocs = Array.isArray(docs) ? docs.filter(d => !d.status || d.status === 'ACTIVE') : [];
+    _cachedHospitalDocs = activeDocs;
 
     const currentUser = window.hospitrackAuth?.getCurrentUser();
     console.log('[PHYSICIAN_LOADER]', {
@@ -3602,6 +3680,12 @@ window.loadHospitalPhysiciansDropdown = async function() {
       role: currentUser?.role,
       hospitalId: currentUser?.hospitalId
     });
+
+    if (deptSelect) {
+      const uniqueDepts = [...new Set(activeDocs.map(d => d.specialty || d.department).filter(Boolean))].sort();
+      deptSelect.innerHTML = `<option value="">All Departments (${activeDocs.length})</option>` +
+        uniqueDepts.map(dep => `<option value="${safeEscape(dep)}">${safeEscape(dep)}</option>`).join('');
+    }
 
     if (activeDocs.length === 0) {
       docSelect.innerHTML = '<option value="">No active physicians found</option>';
@@ -3779,6 +3863,74 @@ window.handleAdmitPatientSubmit = async function(event) {
     return;
   }
 
+  // Intake Triage Telemetry Vitals
+  const bpSysRaw = document.getElementById('admitPatBPSystolic')?.value.trim();
+  const bpDiaRaw = document.getElementById('admitPatBPDiastolic')?.value.trim();
+  const hrRaw = document.getElementById('admitPatHeartRate')?.value.trim();
+  const spo2Raw = document.getElementById('admitPatSpO2')?.value.trim();
+  const tempRaw = document.getElementById('admitPatTemp')?.value.trim();
+  const rhythmNotes = document.getElementById('admitPatRhythmNotes')?.value.trim() || null;
+
+  const bpSys = bpSysRaw ? parseInt(bpSysRaw, 10) : null;
+  const bpDia = bpDiaRaw ? parseInt(bpDiaRaw, 10) : null;
+  const hr = hrRaw ? parseInt(hrRaw, 10) : null;
+  const spo2 = spo2Raw ? parseInt(spo2Raw, 10) : null;
+  const temp = tempRaw ? parseFloat(tempRaw) : null;
+
+  if (bpSys !== null && (isNaN(bpSys) || bpSys <= 0)) {
+    if (alertEl) {
+      alertEl.textContent = 'Systolic blood pressure must be a positive integer.';
+      alertEl.className = 'alert-banner error mb-16';
+      alertEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (bpDia !== null && (isNaN(bpDia) || bpDia <= 0)) {
+    if (alertEl) {
+      alertEl.textContent = 'Diastolic blood pressure must be a positive integer.';
+      alertEl.className = 'alert-banner error mb-16';
+      alertEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (bpSys !== null && bpDia !== null && bpSys <= bpDia) {
+    if (alertEl) {
+      alertEl.textContent = 'Systolic blood pressure must be greater than diastolic blood pressure.';
+      alertEl.className = 'alert-banner error mb-16';
+      alertEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (hr !== null && (isNaN(hr) || hr < 20 || hr > 300)) {
+    if (alertEl) {
+      alertEl.textContent = 'Heart rate must be between 20 and 300 bpm.';
+      alertEl.className = 'alert-banner error mb-16';
+      alertEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (spo2 !== null && (isNaN(spo2) || spo2 < 50 || spo2 > 100)) {
+    if (alertEl) {
+      alertEl.textContent = 'Oxygen saturation (SpO2) must be between 50% and 100%.';
+      alertEl.className = 'alert-banner error mb-16';
+      alertEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (temp !== null && (isNaN(temp) || temp < 70 || temp > 115)) {
+    if (alertEl) {
+      alertEl.textContent = 'Body temperature must be between 70°F and 115°F.';
+      alertEl.className = 'alert-banner error mb-16';
+      alertEl.classList.remove('hidden');
+    }
+    return;
+  }
+
   try {
     if (submitBtn) {
       submitBtn.disabled = true;
@@ -3799,6 +3951,14 @@ window.handleAdmitPatientSubmit = async function(event) {
       address,
       assignedDoctorId,
       primaryDoctorId: assignedDoctorId,
+      bloodPressureSystolic: bpSys,
+      bloodPressureDiastolic: bpDia,
+      bloodPressure: (bpSys !== null && bpDia !== null) ? `${bpSys}/${bpDia}` : null,
+      heartRate: hr,
+      oxygenSaturation: spo2,
+      bodyTemperature: temp,
+      rhythmNotes: rhythmNotes,
+      intakeSource: 'HOSPITAL_ADMISSION',
       password,
       photoUrl
     };

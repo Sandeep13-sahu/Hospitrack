@@ -38,9 +38,11 @@ public class UserLookupService {
         String idLower = idClean.toLowerCase();
         String idUpper = idClean.toUpperCase();
 
-        // 1. Direct Email (case-insensitive)
-        Optional<User> byEmail = userRepository.findByEmailIgnoreCase(idLower);
-        if (byEmail.isPresent()) return byEmail;
+        // 1. Direct Email (case-insensitive) - Highest priority
+        // If identifier contains '@', treat strictly as an email lookup and do not fall back
+        if (idClean.contains("@")) {
+            return userRepository.findByEmailIgnoreCase(idLower);
+        }
 
         // 2. Direct User ID
         Optional<User> byId = userRepository.findById(idClean);
@@ -74,9 +76,14 @@ public class UserLookupService {
             }
         }
 
-        // 7. Phone Number / Contact
-        Optional<User> byPhone = userRepository.findByPhone(idClean);
-        if (byPhone.isPresent()) return byPhone;
+        // 7. Phone Number / Contact (Must be unambiguous; reject if multiple accounts match)
+        List<User> byPhoneUsers = userRepository.findAllByPhone(idClean);
+        if (byPhoneUsers.size() > 1) {
+            // Ambiguous phone number resolution: safely reject
+            return Optional.empty();
+        } else if (byPhoneUsers.size() == 1) {
+            return Optional.of(byPhoneUsers.get(0));
+        }
 
         Optional<Doctor> docByPhone = doctorRepository.findByPhone(idClean);
         if (docByPhone.isPresent()) {
@@ -91,11 +98,15 @@ public class UserLookupService {
         }
 
         // 8. Username prefix before '@' (e.g. "s.sharma" matching "s.sharma@citygeneral.in")
+        // Must match EXACTLY ONE user; if multiple users match, safely reject
         List<User> matchingPrefix = userRepository.findAll().stream()
                 .filter(u -> u.getEmail() != null && u.getEmail().split("@")[0].equalsIgnoreCase(idClean))
                 .toList();
         if (matchingPrefix.size() == 1) {
             return Optional.of(matchingPrefix.get(0));
+        } else if (matchingPrefix.size() > 1) {
+            // Ambiguous prefix matching multiple users: safely reject
+            return Optional.empty();
         }
 
         return Optional.empty();

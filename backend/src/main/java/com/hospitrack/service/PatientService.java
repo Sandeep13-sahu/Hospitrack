@@ -38,6 +38,7 @@ public class PatientService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final PatientEventStreamService eventStreamService;
+    private final TriageVitalsRepository triageVitalsRepository;
 
     public PatientService(
             PatientRepository patientRepository,
@@ -50,7 +51,8 @@ public class PatientService {
             BedService bedService,
             PasswordEncoder passwordEncoder,
             AuditService auditService,
-            PatientEventStreamService eventStreamService
+            PatientEventStreamService eventStreamService,
+            TriageVitalsRepository triageVitalsRepository
     ) {
         this.patientRepository = patientRepository;
         this.hospitalRepository = hospitalRepository;
@@ -63,6 +65,7 @@ public class PatientService {
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
         this.eventStreamService = eventStreamService;
+        this.triageVitalsRepository = triageVitalsRepository;
     }
 
     @Transactional(readOnly = true)
@@ -77,7 +80,7 @@ public class PatientService {
 
     @Transactional(readOnly = true)
     public List<Patient> getPatientsByDoctor(String doctorId) {
-        return patientRepository.findByPrimaryDoctorId(doctorId);
+        return patientRepository.findByPrimaryDoctorIdOrAssignedDoctorId(doctorId, doctorId);
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +88,7 @@ public class PatientService {
         if (doctorId == null || doctorId.isBlank()) {
             return List.of();
         }
-        List<Patient> patients = patientRepository.findByPrimaryDoctorId(doctorId);
+        List<Patient> patients = patientRepository.findByPrimaryDoctorIdOrAssignedDoctorId(doctorId, doctorId);
         if (hospitalId != null && !hospitalId.isBlank()) {
             patients = patients.stream()
                     .filter(p -> p.getCurrentHospitalId() != null && p.getCurrentHospitalId().equalsIgnoreCase(hospitalId))
@@ -158,6 +161,8 @@ public class PatientService {
                 if (request.getWard() != null) existing.setWard(request.getWard());
                 if (request.getBedNumber() != null) existing.setBedNumber(request.getBedNumber());
 
+                applyTriageVitalsIfPresent(existing, request, hospitalId, actorId, actorRole, actorName);
+
                 Patient saved = patientRepository.save(existing);
 
                 // Ensure linked user account exists and has updated password / active status
@@ -212,6 +217,8 @@ public class PatientService {
             patient.setPhotoUrl(request.getPhotoUrl());
         }
 
+        applyTriageVitalsIfPresent(patient, request, hospitalId, actorId, actorRole, actorName);
+
         Patient saved = patientRepository.save(patient);
 
         // Provision User login credentials for Patient
@@ -233,6 +240,51 @@ public class PatientService {
 
         eventStreamService.emitPatientEvent(saved.getId(), "PATIENT_ADMITTED", saved);
         return saved;
+    }
+
+    private void applyTriageVitalsIfPresent(Patient patient, PatientRequest request, String hospitalId, String actorId, String actorRole, String actorName) {
+        boolean hasTriage = request.getBloodPressureSystolic() != null || request.getBloodPressureDiastolic() != null ||
+                request.getHeartRate() != null || request.getOxygenSaturation() != null || request.getBodyTemperature() != null;
+        if (hasTriage) {
+            LocalDateTime now = LocalDateTime.now();
+            patient.setBloodPressureSystolic(request.getBloodPressureSystolic());
+            patient.setBloodPressureDiastolic(request.getBloodPressureDiastolic());
+            patient.setHeartRate(request.getHeartRate());
+            patient.setOxygenSaturation(request.getOxygenSaturation());
+            patient.setBodyTemperature(request.getBodyTemperature());
+            patient.setRhythmNotes(request.getRhythmNotes());
+            patient.setTriageRecordedAt(now);
+            patient.setTriageRecordedBy(actorName != null ? actorName : "Admissions Staff");
+
+            String tvId = "TV-" + System.currentTimeMillis();
+            TriageVitals tv = new TriageVitals(
+                    tvId,
+                    patient.getId(),
+                    actorId,
+                    actorName,
+                    hospitalId,
+                    request.getBloodPressureSystolic(),
+                    request.getBloodPressureDiastolic(),
+                    request.getHeartRate(),
+                    request.getOxygenSaturation(),
+                    request.getBodyTemperature(),
+                    request.getRhythmNotes(),
+                    request.getIntakeSource() != null ? request.getIntakeSource() : "INTAKE_ADMISSION"
+            );
+            triageVitalsRepository.save(tv);
+            auditService.logEvent(actorId, actorRole, actorName, "TRIAGE_VITALS_RECORDED", "PATIENT", patient.getId(),
+                    "Recorded initial intake triage vitals for patient " + patient.getId() + " at admission.");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<TriageVitals> getPatientTriageVitals(String patientId) {
+        return triageVitalsRepository.findByPatientIdOrderByRecordedAtDesc(patientId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<TriageVitals> getLatestTriageVitals(String patientId) {
+        return triageVitalsRepository.findFirstByPatientIdOrderByRecordedAtDesc(patientId);
     }
 
     private void linkBedSafely(Patient patient, String hospitalId, String bedNumber, Doctor assignedDoctor) {
@@ -270,7 +322,7 @@ public class PatientService {
         }
         email = email.toLowerCase().trim();
 
-        String rawPassword = explicitPassword != null && !explicitPassword.isBlank() ? explicitPassword : "Patient@123!";
+        String rawPassword = explicitPassword != null && !explicitPassword.isBlank() ? explicitPassword.trim() : "Patient@123!";
         patient.setInitialPassword(rawPassword);
 
         if (userRepository.existsByEmailIgnoreCase(email)) {

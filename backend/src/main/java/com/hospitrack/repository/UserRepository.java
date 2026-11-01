@@ -19,4 +19,5 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findFirstByDoctorIdIgnoreCase(String doctorId);
     Optional<User> findFirstByPatientIdIgnoreCase(String patientId);
     Optional<User> findByPhone(String phone);
+    List<User> findAllByPhone(String phone);
 }

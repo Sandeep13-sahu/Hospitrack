@@ -8,35 +8,45 @@
 
  :: Spring Boot ::                (v3.3.3)
 
-2026-10-31T14:37:05.625+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.hospitrack.HospitrackApplication     : Starting HospitrackApplication v1.0.0 using Java 17.0.20 with PID 22152 (S:\hospitrack-project\backend\target\hospitrack-backend-1.0.0.jar started by sande in S:\hospitrack-project\backend)
-2026-10-31T14:37:05.629+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.hospitrack.HospitrackApplication     : The following 1 profile is active: "dev"
-2026-10-31T14:37:06.444+05:30  INFO 22152 --- [hospitrack-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
-2026-10-31T14:37:06.536+05:30  INFO 22152 --- [hospitrack-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 83 ms. Found 18 JPA repository interfaces.
-2026-10-31T14:37:07.265+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
-2026-10-31T14:37:07.284+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-10-31T14:37:07.284+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.28]
-2026-10-31T14:37:07.327+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2026-10-31T14:37:07.328+05:30  INFO 22152 --- [hospitrack-backend] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1649 ms
-2026-10-31T14:37:07.496+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
-2026-10-31T14:37:07.585+05:30  INFO 22152 --- [hospitrack-backend] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.2.Final
-2026-10-31T14:37:07.633+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
-2026-10-31T14:37:08.034+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
-2026-10-31T14:37:08.074+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-10-31T14:37:08.286+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:hospitrack user=SA
-2026-10-31T14:37:08.288+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2026-10-31T14:37:08.320+05:30  WARN 22152 --- [hospitrack-backend] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
-2026-10-31T14:37:09.592+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
-2026-10-31T14:37:09.698+05:30  INFO 22152 --- [hospitrack-backend] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
-2026-10-31T14:37:10.356+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
-2026-10-31T14:37:11.372+05:30  INFO 22152 --- [hospitrack-backend] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name customUserDetailsService
-2026-10-31T14:37:12.065+05:30  INFO 22152 --- [hospitrack-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
-2026-10-31T14:37:12.084+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.hospitrack.HospitrackApplication     : Started HospitrackApplication in 6.92 seconds (process running for 7.388)
-2026-10-31T14:37:12.362+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : Initialized SUPER_ADMIN account in PostgreSQL
-2026-10-31T14:37:12.377+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : Seeding baseline healthcare entities into PostgreSQL database...
-2026-10-31T14:37:12.454+05:30  INFO 22152 --- [hospitrack-backend] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2026-10-31T14:37:12.454+05:30  INFO 22152 --- [hospitrack-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2026-10-31T14:37:12.455+05:30  INFO 22152 --- [hospitrack-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
-2026-10-31T14:37:13.481+05:30  INFO 22152 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : Baseline data seeded successfully.
-2026-10-31T14:39:30.368+05:30  INFO 22152 --- [hospitrack-backend] [nio-8080-exec-1] c.h.controller.DoctorController          : [DOCTOR_API] authenticated=true userId=USER-HOSP-102 role=HOSPITAL_ADMIN hospitalId=HOSP-102
-2026-10-31T14:39:30.373+05:30  INFO 22152 --- [hospitrack-backend] [nio-8080-exec-1] c.h.controller.DoctorController          : [DOCTOR_API] resultCount=1
+2026-11-01T14:32:53.778+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.HospitrackApplication     : Starting HospitrackApplication v1.0.0 using Java 17.0.20 with PID 6048 (S:\hospitrack-project\backend\target\hospitrack-backend-1.0.0.jar started by sande in S:\hospitrack-project\backend)
+2026-11-01T14:32:53.782+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.HospitrackApplication     : The following 1 profile is active: "dev"
+2026-11-01T14:32:54.975+05:30  INFO 6048 --- [hospitrack-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-01T14:32:55.103+05:30  INFO 6048 --- [hospitrack-backend] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 116 ms. Found 18 JPA repository interfaces.
+2026-11-01T14:32:56.043+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-11-01T14:32:56.074+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-11-01T14:32:56.075+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.28]
+2026-11-01T14:32:56.129+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-11-01T14:32:56.130+05:30  INFO 6048 --- [hospitrack-backend] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2273 ms
+2026-11-01T14:32:56.206+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.config.DatabaseConfig     : [DataSource] Initialized HikariDataSource for target [localhost:mem/h2] with driver [org.h2.Driver] and user [***] (Password configured: NO)
+2026-11-01T14:32:56.213+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-11-01T14:32:56.513+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:hospitrack user=SA
+2026-11-01T14:32:56.516+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-11-01T14:32:56.647+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-11-01T14:32:56.777+05:30  INFO 6048 --- [hospitrack-backend] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.2.Final
+2026-11-01T14:32:56.857+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-11-01T14:32:57.356+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-01T14:32:57.439+05:30  WARN 6048 --- [hospitrack-backend] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-11-01T14:32:59.198+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-01T14:32:59.306+05:30  INFO 6048 --- [hospitrack-backend] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-01T14:33:00.130+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-01T14:33:01.412+05:30  INFO 6048 --- [hospitrack-backend] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name customUserDetailsService
+2026-11-01T14:33:02.274+05:30  INFO 6048 --- [hospitrack-backend] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+2026-11-01T14:33:02.298+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.HospitrackApplication     : Started HospitrackApplication in 9.214 seconds (process running for 9.861)
+2026-11-01T14:33:02.636+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : Initialized SUPER_ADMIN account in PostgreSQL
+2026-11-01T14:33:02.654+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : Seeding baseline healthcare entities into PostgreSQL database...
+2026-11-01T14:33:03.003+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-01T14:33:03.003+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-11-01T14:33:03.004+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-11-01T14:33:03.931+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : Baseline data seeded successfully.
+2026-11-01T14:33:12.241+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : Restored and verified 111 registered accounts from DEMO_CREDENTIALS.md
+2026-11-01T14:33:12.241+05:30  INFO 6048 --- [hospitrack-backend] [           main] com.hospitrack.service.DatabaseSeeder    : === DatabaseSeeder.run() completed successfully ===
+2026-11-01T14:41:14.096+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-6] c.h.controller.DoctorController          : [DOCTOR_API] authenticated=true userId=USER-HOSP-102 role=HOSPITAL_ADMIN hospitalId=HOSP-102
+2026-11-01T14:41:14.101+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-6] c.h.controller.DoctorController          : [DOCTOR_API] resultCount=2
+2026-11-01T14:43:51.049+05:30  INFO 6048 --- [hospitrack-backend] [io-8080-exec-10] c.h.controller.DoctorController          : [DOCTOR_API] authenticated=true userId=USER-HOSP-102 role=HOSPITAL_ADMIN hospitalId=HOSP-102
+2026-11-01T14:43:51.052+05:30  INFO 6048 --- [hospitrack-backend] [io-8080-exec-10] c.h.controller.DoctorController          : [DOCTOR_API] resultCount=2
+2026-11-01T14:43:54.541+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-8] c.h.c.HospitalDoctorManagementController : [HOSPITAL_MY_DOCTORS] Retrieved 2 active doctors for hospital HOSP-102
+2026-11-01T14:45:00.809+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-2] c.h.controller.DoctorController          : [DOCTOR_API] authenticated=true userId=USER-HOSP-102 role=HOSPITAL_ADMIN hospitalId=HOSP-102
+2026-11-01T14:45:00.813+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-2] c.h.controller.DoctorController          : [DOCTOR_API] resultCount=2
+2026-11-01T14:45:00.983+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-1] c.h.controller.DoctorController          : [DOCTOR_API] authenticated=true userId=USER-HOSP-102 role=HOSPITAL_ADMIN hospitalId=HOSP-102
+2026-11-01T14:45:00.987+05:30  INFO 6048 --- [hospitrack-backend] [nio-8080-exec-1] c.h.controller.DoctorController          : [DOCTOR_API] resultCount=2
 ^C

@@ -989,6 +989,19 @@ class HospitrackStore {
   // --------------------------------------------------------------------------
   async createPatient(payload) {
     const res = await this.apiRequest('/api/patients', 'POST', payload);
+    if (res && res.data) {
+      if (payload.bloodPressureSystolic !== undefined) res.data.bloodPressureSystolic = payload.bloodPressureSystolic;
+      if (payload.bloodPressureDiastolic !== undefined) res.data.bloodPressureDiastolic = payload.bloodPressureDiastolic;
+      if (payload.bloodPressure !== undefined) res.data.bloodPressure = payload.bloodPressure;
+      if (payload.heartRate !== undefined) res.data.heartRate = payload.heartRate;
+      if (payload.oxygenSaturation !== undefined) res.data.oxygenSaturation = payload.oxygenSaturation;
+      if (payload.bodyTemperature !== undefined) res.data.bodyTemperature = payload.bodyTemperature;
+      if (payload.rhythmNotes !== undefined) res.data.rhythmNotes = payload.rhythmNotes;
+      if (payload.assignedDoctorId) {
+        res.data.assignedDoctorId = payload.assignedDoctorId;
+        res.data.primaryDoctorId = payload.assignedDoctorId;
+      }
+    }
     await this.syncAllData();
     return res.data;
   }

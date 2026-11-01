@@ -687,9 +687,9 @@ async function handleLoginSubmit(event) {
 
     // Authenticate with real backend API
     const authResult = await window.hospitrackAuth.login(identifier, password, remember);
-    const user = (authResult && authResult.user) ? authResult.user : (authResult || window.hospitrackAuth.getCurrentUser());
+    const user = (authResult && authResult.user) ? authResult.user : authResult;
 
-    if (!user) {
+    if (!user || !user.role) {
       throw new Error('Authentication failed. User profile could not be loaded.');
     }
 

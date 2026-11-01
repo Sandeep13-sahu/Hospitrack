@@ -126,8 +126,24 @@ const mockStore = {
     patients: [mockPatient],
     doctors: [mockDoctor],
     hospitals: [mockHospital],
-    prescriptions: [],
-    labs: [],
+    prescriptions: [
+      {
+        id: 'RX-303',
+        patientId: 'PAT-303',
+        doctorId: 'DOC-202',
+        doctorName: 'Dr. Arjun Verma',
+        hospitalId: 'HOSP-102',
+        prescribedAt: '2026-10-28T10:30:00Z',
+        items: [
+          { name: 'Metoprolol Succinate', dosage: '25mg', form: 'Tablet', frequency: 'Twice Daily [BD]', scheduleTag: '1 - 0 - 1 • After Meals', route: 'Oral', timing: 'After Meals', duration: '14 days' },
+          { name: 'Pantoprazole Sodium', dosage: '40mg', form: 'Tablet', frequency: 'Once Daily [OD]', scheduleTag: '1 - 0 - 0 • Before Breakfast', route: 'Oral', timing: 'Before Meals', duration: '7 days' }
+        ]
+      }
+    ],
+    labs: [
+      { id: 'LAB-901', patientId: 'PAT-303', testName: 'Complete Blood Count (CBC) with Automated Differential', category: 'Diagnostic Hematology', timestamp: '2026-10-28T09:15:00Z', doctorName: 'Dr. Arjun Verma', status: 'PROCESSING_IN_LAB', resultSummary: 'Specimen barcoded and incubated in automated flow cytometer.' },
+      { id: 'LAB-902', patientId: 'PAT-303', testName: 'High-Sensitivity Cardiac Troponin-I (hs-cTnI)', category: 'Cardiac Telemetry Biomarker', timestamp: '2026-10-28T09:15:00Z', doctorName: 'Dr. Arjun Verma', status: 'SAMPLE_COLLECTED', resultSummary: 'Venous blood serum collected via phlebotomy; routed to clinical pathology.' }
+    ],
     referrals: []
   },
   getPatients: function () { return this.data.patients; },

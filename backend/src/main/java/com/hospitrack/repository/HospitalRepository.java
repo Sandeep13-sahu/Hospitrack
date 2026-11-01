@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface HospitalRepository extends JpaRepository<Hospital, String> {
     Optional<Hospital> findByCode(String code);
     boolean existsByCode(String code);
+    Optional<Hospital> findByEmailIgnoreCase(String email);
+    boolean existsByEmailIgnoreCase(String email);
 }

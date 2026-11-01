@@ -101,7 +101,11 @@ public class AuthService {
         }
 
         if (user.getStatus() == AccountStatus.PENDING_APPROVAL) {
-            throw new LockedException("Your hospital account is awaiting administrator approval.");
+            if (user.getRole() == Role.HOSPITAL_ADMIN) {
+                throw new LockedException("Your hospital registration is pending administrator approval. You will receive an email once approved.");
+            } else {
+                throw new LockedException("Your account is pending verification. Please contact support.");
+            }
         }
 
         if (user.getStatus() == AccountStatus.SUSPENDED) {
@@ -112,14 +116,20 @@ public class AuthService {
             throw new DisabledException("Your account is currently unavailable.");
         }
 
-        // Validate facility operational status for hospital-associated accounts
-        if (user.getHospitalId() != null && !user.getHospitalId().isBlank() && user.getRole() != Role.SUPER_ADMIN) {
+        // Validate facility operational status for hospital staff (HOSPITAL_ADMIN and DOCTOR)
+        // Patient accounts are personal healthcare accounts and must NOT be blocked by hospital facility approval/operational status
+        if (user.getHospitalId() != null && !user.getHospitalId().isBlank()
+                && (user.getRole() == Role.HOSPITAL_ADMIN || user.getRole() == Role.DOCTOR)) {
             Optional<Hospital> hospOpt = hospitalRepository.findById(user.getHospitalId());
             if (hospOpt.isPresent()) {
                 Hospital hosp = hospOpt.get();
                 String hStatus = hosp.getStatus() != null ? hosp.getStatus().toUpperCase() : "ACTIVE";
                 if ("PENDING_APPROVAL".equals(hStatus)) {
-                    throw new LockedException("Your hospital account is awaiting administrator approval.");
+                    if (user.getRole() == Role.HOSPITAL_ADMIN) {
+                        throw new LockedException("Your hospital registration is pending administrator approval. You will receive an email once approved.");
+                    } else {
+                        throw new LockedException("Your hospital facility is pending administrator approval. Please contact your hospital administrator.");
+                    }
                 } else if ("SUSPENDED".equals(hStatus)) {
                     throw new LockedException("Your hospital account is currently suspended. Contact your administrator.");
                 } else if ("DEACTIVATED".equals(hStatus) || "DISABLED".equals(hStatus)) {
@@ -189,14 +199,30 @@ public class AuthService {
             throw new DuplicateResourceException("An account with this email address already exists.");
         }
 
-        String userId = generateEntityId(Role.PATIENT);
-        String passwordHash = passwordEncoder.encode(request.getPassword());
+        String name = request.getName() != null ? request.getName().trim() : "";
+        if (name.isEmpty()) {
+            throw new BadRequestException("Full name is required.");
+        }
 
-        String hospId = request.getHospitalId() != null && !request.getHospitalId().trim().isEmpty() ? request.getHospitalId() : "HOSP-101";
+        String rawPassword = request.getPassword() != null ? request.getPassword().trim() : "";
+        if (rawPassword.length() < 8) {
+            throw new BadRequestException("Password must be at least 8 characters long.");
+        }
+        String passwordHash = passwordEncoder.encode(rawPassword);
+
+        long count = patientRepository.count();
+        String userId = "PAT-" + (300 + count + 1);
+        int seq = 1;
+        while (patientRepository.existsById(userId) || userRepository.existsById(userId)) {
+            userId = "PAT-" + (300 + count + 1 + seq);
+            seq++;
+        }
+
+        String hospId = request.getHospitalId() != null && !request.getHospitalId().trim().isEmpty() ? request.getHospitalId().trim() : "HOSP-101";
 
         Patient patient = new Patient(
                 userId,
-                request.getName(),
+                name,
                 request.getGender() != null ? request.getGender() : "Not Specified",
                 request.getAge() != null ? request.getAge() : 30,
                 request.getBloodGroup() != null ? request.getBloodGroup() : "O+",
@@ -211,7 +237,7 @@ public class AuthService {
 
         User user = new User();
         user.setId(userId);
-        user.setName(request.getName());
+        user.setName(name);
         user.setEmail(email);
         user.setPasswordHash(passwordHash);
         user.setRole(Role.PATIENT);
@@ -223,7 +249,7 @@ public class AuthService {
         userRepository.save(user);
 
         auditService.logEvent(user.getId(), "PATIENT", user.getName(), "PATIENT_REGISTERED", "USER", user.getId(), "Registered new patient: " + user.getName());
-        recordNewRegistrationInDemoCredentials("PATIENT", request.getName(), email, request.getPassword(), "ACTIVE");
+        recordNewRegistrationInDemoCredentials("PATIENT", name, email, rawPassword, "ACTIVE");
 
         String hospitalName = getHospitalName(hospId);
         UserDto userDto = UserDto.fromEntity(user, hospitalName);
@@ -240,11 +266,30 @@ public class AuthService {
             throw new DuplicateResourceException("An account with this email address already exists.");
         }
 
-        String hospName = request.getHospitalName() != null ? request.getHospitalName().trim() : request.getName();
-        String hospCode = request.getRegistrationNumber() != null ? request.getRegistrationNumber().trim() : ("HOSP-" + (System.currentTimeMillis() % 10000));
-        String hospId = "HOSP-" + (System.currentTimeMillis() % 10000);
+        String rawPassword = request.getPassword() != null ? request.getPassword().trim() : "";
+        if (rawPassword.length() < 8) {
+            throw new BadRequestException("Password must be at least 8 characters long.");
+        }
+
+        String hospName = request.getHospitalName() != null && !request.getHospitalName().trim().isEmpty()
+                ? request.getHospitalName().trim()
+                : (request.getName() != null && !request.getName().trim().isEmpty() ? request.getName().trim() : "Healthcare Facility");
+        String hospCode = request.getRegistrationNumber() != null && !request.getRegistrationNumber().trim().isEmpty()
+                ? request.getRegistrationNumber().trim()
+                : ("HOSP-" + (System.currentTimeMillis() % 10000));
+        
+        long count = hospitalRepository.count();
+        String hospId = "HOSP-" + (200 + count + 1);
+        int seq = 1;
+        while (hospitalRepository.existsById(hospId)) {
+            hospId = "HOSP-" + (200 + count + 1 + seq);
+            seq++;
+        }
+
         int totalBeds = request.getTotalBeds() != null && request.getTotalBeds() > 0 ? request.getTotalBeds() : 100;
-        String location = request.getAddress() != null ? request.getAddress() : (request.getCity() != null ? request.getCity() : "Medical Center");
+        String location = request.getAddress() != null && !request.getAddress().trim().isEmpty()
+                ? request.getAddress().trim()
+                : (request.getCity() != null ? request.getCity().trim() : "Medical Center");
 
         Hospital hospital = new Hospital(
                 hospId,
@@ -262,9 +307,9 @@ public class AuthService {
         String userId = "USER-" + hospId;
         User user = new User();
         user.setId(userId);
-        user.setName(request.getName() != null ? request.getName() : (hospName + " Administrator"));
+        user.setName(request.getName() != null && !request.getName().trim().isEmpty() ? request.getName().trim() : (hospName + " Administrator"));
         user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setRole(Role.HOSPITAL_ADMIN);
         user.setPhone(request.getPhone());
         user.setHospitalId(hospId);
@@ -273,10 +318,10 @@ public class AuthService {
         userRepository.save(user);
 
         auditService.logEvent("SYSTEM", "HOSPITAL_REGISTRATION", hospName, "HOSPITAL_REGISTERED", "HOSPITAL", hospId, "Hospital registered in PENDING_APPROVAL status: " + hospName);
-        recordNewRegistrationInDemoCredentials("HOSPITAL_ADMIN", hospName, email, request.getPassword(), "PENDING_APPROVAL");
+        recordNewRegistrationInDemoCredentials("HOSPITAL_ADMIN", hospName, email, rawPassword, "PENDING_APPROVAL");
 
         UserDto userDto = UserDto.fromEntity(user, hospName);
-        return ApiResponse.success("Hospital registration submitted. Your hospital is awaiting administrator approval.", userDto);
+        return ApiResponse.success("Hospital registration submitted. Your hospital registration is pending administrator approval. You will receive an email once approved.", userDto);
     }
 
     @Transactional

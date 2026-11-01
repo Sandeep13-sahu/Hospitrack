@@ -341,6 +341,8 @@ function renderDoctorDashboardHome(data) {
 // Queue Filter Tabs Sub-Renderer with Real Counts
 // ----------------------------------------------------------------------------
 function renderQueueFilterTabs(allPatients) {
+  const currentDocId = window.hospitrackAuth?.getCurrentUser()?.doctorId;
+  const myAssignedCount = allPatients.filter(p => currentDocId && (p.assignedDoctorId === currentDocId || p.primaryDoctorId === currentDocId)).length;
   const allCount = allPatients.length;
   const checkedInCount = allPatients.filter(p => p.status === 'CHECKED_IN').length;
   const waitingCount = allPatients.filter(p => p.status === 'WAITING' || p.status === 'ACTIVE').length;
@@ -349,6 +351,9 @@ function renderQueueFilterTabs(allPatients) {
 
   return `
     <div class="queue-filter-pills">
+      <button type="button" class="btn-filter-pill ${queueFilterStatus === 'MY_PATIENTS' ? 'active' : ''}" onclick="filterClinicalQueue('MY_PATIENTS')">
+        My Assigned (${myAssignedCount})
+      </button>
       <button type="button" class="btn-filter-pill ${queueFilterStatus === 'ALL' ? 'active' : ''}" onclick="filterClinicalQueue('ALL')">
         All (${allCount})
       </button>
@@ -375,7 +380,10 @@ function renderClinicalQueueTable(allPatients) {
   let filtered = allPatients;
 
   if (queueFilterStatus !== 'ALL') {
-    if (queueFilterStatus === 'WAITING') {
+    if (queueFilterStatus === 'MY_PATIENTS') {
+      const currentDocId = window.hospitrackAuth?.getCurrentUser()?.doctorId;
+      filtered = filtered.filter(p => currentDocId && (p.assignedDoctorId === currentDocId || p.primaryDoctorId === currentDocId));
+    } else if (queueFilterStatus === 'WAITING') {
       filtered = filtered.filter(p => p.status === 'WAITING' || p.status === 'ACTIVE');
     } else if (queueFilterStatus === 'COMPLETED') {
       filtered = filtered.filter(p => p.status === 'COMPLETED' || p.status === 'DISCHARGED');
@@ -448,6 +456,13 @@ function renderClinicalQueueTable(allPatients) {
                   <div class="patient-cell-name">
                     <strong>${escapeHtml(p.name)}</strong>
                     <span class="patient-id-tag">${escapeHtml(p.id)}</span>
+                    ${(function() {
+                      const curDoc = window.hospitrackAuth?.getCurrentUser()?.doctorId;
+                      if (curDoc && (p.assignedDoctorId === curDoc || p.primaryDoctorId === curDoc)) {
+                        return '<span class="badge badge-success font-xs" style="background:#10B981;color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;margin-left:6px;">Assigned to You</span>';
+                      }
+                      return '';
+                    })()}
                   </div>
                 </td>
                 <td>
@@ -677,52 +692,26 @@ function getPatientActiveMedications(patientId, defaultRx) {
     return window.__patientClinicalChartState[patientId].medications;
   }
   let meds = [];
-  if (defaultRx && defaultRx.items && defaultRx.items.length > 0) {
-    meds = defaultRx.items.map((m, idx) => ({
-      id: `MED-INIT-${idx}`,
+  const store = window.hospitrackStore;
+  const patientRxList = (store && typeof store.getPrescriptions === 'function')
+    ? store.getPrescriptions(patientId)
+    : [];
+  const sourceRx = defaultRx || (patientRxList && patientRxList.length > 0 ? patientRxList[0] : null);
+  if (sourceRx && sourceRx.items && sourceRx.items.length > 0) {
+    meds = sourceRx.items.map((m, idx) => ({
+      id: m.id || `MED-INIT-${idx}`,
       name: m.name,
-      dosage: m.dosage || '500mg',
+      dosage: m.dosage || '',
       form: m.form || 'Tablet',
-      frequency: m.frequency || 'Twice Daily [BD]',
-      scheduleTag: m.scheduleTag || (m.frequency ? `${m.frequency} • After Meals` : '1 - 0 - 1 • After Meals'),
+      frequency: m.frequency || '',
+      scheduleTag: m.scheduleTag || (m.frequency ? `${m.frequency} • ${m.timing || 'After Meals'}` : ''),
       route: m.route || 'Oral',
       timing: m.timing || 'After Meals',
-      duration: m.duration || '7 days',
-      prescribedAt: defaultRx.prescribedAt ? new Date(defaultRx.prescribedAt).toLocaleDateString('en-GB') : '28-Oct-2026, 10:30 AM',
-      prescribedBy: defaultRx.doctorName || 'Dr. Arjun Verma',
+      duration: m.duration || '',
+      prescribedAt: sourceRx.prescribedAt ? new Date(sourceRx.prescribedAt).toLocaleDateString('en-GB') : '',
+      prescribedBy: sourceRx.doctorName || 'Attending Physician',
       status: 'ACTIVE'
     }));
-  } else if (patientId === 'PAT-303') {
-    meds = [
-      {
-        id: 'MED-303-1',
-        name: 'Metoprolol Succinate',
-        dosage: '25mg',
-        form: 'Tablet',
-        frequency: 'Twice Daily [BD]',
-        scheduleTag: '1 - 0 - 1 • After Meals',
-        route: 'Oral',
-        timing: 'After Meals',
-        duration: '14 days',
-        prescribedAt: '28-Oct-2026, 10:30 AM',
-        prescribedBy: 'Dr. Arjun Verma',
-        status: 'ACTIVE'
-      },
-      {
-        id: 'MED-303-2',
-        name: 'Pantoprazole Sodium',
-        dosage: '40mg',
-        form: 'Tablet',
-        frequency: 'Once Daily [OD]',
-        scheduleTag: '1 - 0 - 0 • Before Breakfast',
-        route: 'Oral',
-        timing: 'Before Meals',
-        duration: '7 days',
-        prescribedAt: '28-Oct-2026, 10:30 AM',
-        prescribedBy: 'Dr. Arjun Verma',
-        status: 'ACTIVE'
-      }
-    ];
   }
   window.__patientClinicalChartState[patientId] = window.__patientClinicalChartState[patientId] || {};
   window.__patientClinicalChartState[patientId].medications = meds;
@@ -734,37 +723,21 @@ function getPatientActiveLabOrders(patientId, defaultLabs) {
     return window.__patientClinicalChartState[patientId].labOrders;
   }
   let orders = [];
-  if (defaultLabs && defaultLabs.length > 0) {
-    orders = defaultLabs.map(l => ({
+  const store = window.hospitrackStore;
+  const patientLabs = (store && typeof store.getLabs === 'function')
+    ? store.getLabs(null, patientId)
+    : [];
+  const sourceLabs = (defaultLabs && defaultLabs.length > 0) ? defaultLabs : patientLabs;
+  if (sourceLabs && sourceLabs.length > 0) {
+    orders = sourceLabs.map(l => ({
       id: l.id,
       testName: l.testName,
       category: l.category || 'Diagnostic Pathology',
-      orderedAt: l.timestamp ? new Date(l.timestamp).toLocaleDateString('en-GB') : '28-Oct-2026, 09:15 AM',
-      orderedBy: l.doctorName || 'Dr. Arjun Verma',
+      orderedAt: l.timestamp ? new Date(l.timestamp).toLocaleDateString('en-GB') : (l.orderedAt || ''),
+      orderedBy: l.doctorName || 'Attending Physician',
       status: l.status || 'SAMPLE_COLLECTED',
       resultSummary: l.resultSummary || 'Requisition active in laboratory.'
     }));
-  } else if (patientId === 'PAT-303') {
-    orders = [
-      {
-        id: 'LAB-901',
-        testName: 'Complete Blood Count (CBC) with Automated Differential',
-        category: 'Diagnostic Hematology',
-        orderedAt: '28-Oct-2026, 09:15 AM',
-        orderedBy: 'Dr. Arjun Verma',
-        status: 'PROCESSING_IN_LAB',
-        resultSummary: 'Specimen barcoded and incubated in automated flow cytometer.'
-      },
-      {
-        id: 'LAB-902',
-        testName: 'High-Sensitivity Cardiac Troponin-I (hs-cTnI)',
-        category: 'Cardiac Telemetry Biomarker',
-        orderedAt: '28-Oct-2026, 09:15 AM',
-        orderedBy: 'Dr. Arjun Verma',
-        status: 'SAMPLE_COLLECTED',
-        resultSummary: 'Venous blood serum collected via phlebotomy; routed to clinical pathology.'
-      }
-    ];
   }
   window.__patientClinicalChartState[patientId] = window.__patientClinicalChartState[patientId] || {};
   window.__patientClinicalChartState[patientId].labOrders = orders;
@@ -777,10 +750,23 @@ function renderPatientOverviewTab(data) {
   const meds = getPatientActiveMedications(patient.id, latestRx);
   const labOrders = getPatientActiveLabOrders(patient.id, labs);
 
-  const emergencyName = patient.emergencyContactName || 'Karthik Iyer';
-  const emergencyRelation = patient.emergencyContactRelation || 'Husband';
-  const emergencyPhone = patient.emergencyContactPhone || '+91 98111 99993';
+  const emergencyName = patient.emergencyContactName || 'Emergency Contact';
+  const emergencyRelation = patient.emergencyContactRelation || '';
+  const emergencyPhone = patient.emergencyContactPhone || patient.emergencyContact || '—';
   const emergencyPhoneClean = emergencyPhone.replace(/[^0-9+]/g, '');
+
+  // Extract real triage telemetry values
+  const bpSystolic = patient.bloodPressureSystolic != null ? patient.bloodPressureSystolic : (patient.bloodPressure && String(patient.bloodPressure).includes('/') ? parseInt(String(patient.bloodPressure).split('/')[0]) : null);
+  const bpDiastolic = patient.bloodPressureDiastolic != null ? patient.bloodPressureDiastolic : (patient.bloodPressure && String(patient.bloodPressure).includes('/') ? parseInt(String(patient.bloodPressure).split('/')[1]) : null);
+  const bpFormatted = (bpSystolic != null && bpDiastolic != null) ? (bpSystolic + '/' + bpDiastolic) : (patient.bloodPressure || null);
+  const hr = patient.heartRate != null ? patient.heartRate : (patient.pulse != null ? patient.pulse : null);
+  const spo2 = patient.oxygenSaturation != null ? patient.oxygenSaturation : (patient.spO2 != null ? patient.spO2 : (patient.spo2 != null ? patient.spo2 : null));
+  const temp = patient.bodyTemperature != null ? patient.bodyTemperature : (patient.temperature != null ? patient.temperature : null);
+  const rhythmNotes = patient.rhythmNotes || null;
+  const triageRecordedAt = patient.triageRecordedAt ? new Date(patient.triageRecordedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : null;
+  const triageRecordedBy = patient.triageRecordedBy || null;
+
+  const hasTriageVitals = Boolean(bpFormatted || hr != null || spo2 != null || temp != null);
 
   return `
     <div class="patient-clinical-chart-wrap">
@@ -860,7 +846,7 @@ function renderPatientOverviewTab(data) {
           <div class="identity-banner-footer">
             <span>📍</span>
             <span class="font-semibold text-muted">Residential Address:</span>
-            <span>${escapeHtml(patient.address || '42-B, Indiranagar 1st Stage, Bengaluru, KA - 560038')}</span>
+            <span>${escapeHtml(patient.address || '—')}</span>
           </div>
         </div>
       </div>
@@ -874,7 +860,15 @@ function renderPatientOverviewTab(data) {
             </h4>
             <span style="font-size: 0.72rem; color: #64748B;">Continuous clinical observation recorded during intake triage</span>
           </div>
-          <span class="badge badge-subtle font-xs">Clinical Intake Telemetry</span>
+          ${hasTriageVitals ? `
+            <span class="badge badge-subtle font-xs" style="color: #059669; background: #ECFDF5; border: 1px solid #A7F3D0; font-weight: 700;">
+              ✓ Intake Triage Recorded${triageRecordedAt ? ' • ' + triageRecordedAt : ''}${triageRecordedBy ? ' (' + triageRecordedBy + ')' : ''}
+            </span>
+          ` : `
+            <span class="badge badge-subtle font-xs" style="color: #64748B; background: #F8FAFC; border: 1px solid #CBD5E1; font-weight: 700;">
+              Awaiting Triage Telemetry
+            </span>
+          `}
         </div>
 
         <!-- 4 interactive telemetry metric widgets -->
@@ -883,15 +877,30 @@ function renderPatientOverviewTab(data) {
           <div class="telemetry-metric-widget">
             <div class="telemetry-widget-top">
               <span>Blood Pressure</span>
-              <span class="status-tag-pill normal">Normal</span>
+              ${bpFormatted ? (
+                bpSystolic >= 140 || bpDiastolic >= 90
+                  ? '<span class="status-tag-pill warning" style="background:#FEF3C7;color:#B45309;">Elevated</span>'
+                  : (bpSystolic < 90 || bpDiastolic < 60
+                      ? '<span class="status-tag-pill warning" style="background:#FEF3C7;color:#B45309;">Low</span>'
+                      : '<span class="status-tag-pill normal">Recorded</span>')
+              ) : '<span class="status-tag-pill" style="background: #F1F5F9; color: #64748B;">Awaiting Triage</span>'}
             </div>
             <div class="telemetry-widget-main">
-              <span class="telemetry-value-lg text-doctor">120/80</span>
-              <span class="telemetry-unit">mmHg</span>
+              ${bpFormatted ? `
+                <span class="telemetry-value-lg text-doctor">${escapeHtml(bpFormatted)}</span>
+                <span class="telemetry-unit">mmHg</span>
+              ` : `
+                <span class="telemetry-value-lg" style="color: #94A3B8;">— / —</span>
+                <span class="telemetry-unit">mmHg</span>
+              `}
             </div>
             <div class="telemetry-widget-sub">
-              <span class="live-dot-pulse" style="width: 5px; height: 5px; background: #10B981;"></span>
-              <span>Systolic: 120 / Diastolic: 80</span>
+              ${bpFormatted ? `
+                <span class="live-dot-pulse" style="width: 5px; height: 5px; background: #10B981;"></span>
+                <span>Systolic: ${bpSystolic != null ? bpSystolic : '—'} / Diastolic: ${bpDiastolic != null ? bpDiastolic : '—'}</span>
+              ` : `
+                <span style="color: #94A3B8; font-size: 0.72rem;">Unmeasured at intake</span>
+              `}
             </div>
           </div>
 
@@ -899,15 +908,30 @@ function renderPatientOverviewTab(data) {
           <div class="telemetry-metric-widget">
             <div class="telemetry-widget-top">
               <span>Heart Rate</span>
-              <span>💓</span>
+              ${hr != null ? (
+                hr > 100
+                  ? '<span class="status-tag-pill warning" style="background:#FEF3C7;color:#B45309;">Tachycardia</span>'
+                  : (hr < 60
+                      ? '<span class="status-tag-pill warning" style="background:#FEF3C7;color:#B45309;">Bradycardia</span>'
+                      : '<span class="status-tag-pill normal">Normal Rhythm</span>')
+              ) : '<span class="status-tag-pill" style="background: #F1F5F9; color: #64748B;">Awaiting Triage</span>'}
             </div>
             <div class="telemetry-widget-main">
-              <span class="telemetry-value-lg text-primary">74</span>
-              <span class="telemetry-unit">bpm</span>
+              ${hr != null ? `
+                <span class="telemetry-value-lg text-primary">${hr}</span>
+                <span class="telemetry-unit">bpm</span>
+              ` : `
+                <span class="telemetry-value-lg" style="color: #94A3B8;">—</span>
+                <span class="telemetry-unit">bpm</span>
+              `}
             </div>
             <div class="telemetry-widget-sub">
-              <span class="live-dot-pulse" style="width: 5px; height: 5px; background: #0D9488;"></span>
-              <span>Resting Sinus Rhythm</span>
+              ${hr != null ? `
+                <span class="live-dot-pulse" style="width: 5px; height: 5px; background: #0D9488;"></span>
+                <span>${escapeHtml(rhythmNotes || 'Resting Sinus Rhythm')}</span>
+              ` : `
+                <span style="color: #94A3B8; font-size: 0.72rem;">Unmeasured</span>
+              `}
             </div>
           </div>
 
@@ -915,15 +939,28 @@ function renderPatientOverviewTab(data) {
           <div class="telemetry-metric-widget">
             <div class="telemetry-widget-top">
               <span>Oxygen Saturation</span>
-              <span>🫁</span>
+              ${spo2 != null ? (
+                spo2 < 95
+                  ? '<span class="status-tag-pill danger" style="background:#FEE2E2;color:#DC2626;">Hypoxic Risk</span>'
+                  : '<span class="status-tag-pill normal">Adequate</span>'
+              ) : '<span class="status-tag-pill" style="background: #F1F5F9; color: #64748B;">Awaiting Triage</span>'}
             </div>
             <div class="telemetry-widget-main">
-              <span class="telemetry-value-lg text-success">99%</span>
-              <span class="telemetry-unit">SpO2</span>
+              ${spo2 != null ? `
+                <span class="telemetry-value-lg text-success">${spo2}%</span>
+                <span class="telemetry-unit">SpO2</span>
+              ` : `
+                <span class="telemetry-value-lg" style="color: #94A3B8;">— %</span>
+                <span class="telemetry-unit">SpO2</span>
+              `}
             </div>
             <div class="telemetry-widget-sub">
-              <span class="live-dot-pulse" style="width: 5px; height: 5px; background: #10B981;"></span>
-              <span>Room Air (Atmospheric)</span>
+              ${spo2 != null ? `
+                <span class="live-dot-pulse" style="width: 5px; height: 5px; background: #10B981;"></span>
+                <span>Room Air (Atmospheric)</span>
+              ` : `
+                <span style="color: #94A3B8; font-size: 0.72rem;">Unmeasured</span>
+              `}
             </div>
           </div>
 
@@ -931,15 +968,28 @@ function renderPatientOverviewTab(data) {
           <div class="telemetry-metric-widget">
             <div class="telemetry-widget-top">
               <span>Body Temperature</span>
-              <span>🌡️</span>
+              ${temp != null ? (
+                temp >= 100.4
+                  ? '<span class="status-tag-pill danger" style="background:#FEE2E2;color:#DC2626;">Fever</span>'
+                  : '<span class="status-tag-pill normal">Afebrile</span>'
+              ) : '<span class="status-tag-pill" style="background: #F1F5F9; color: #64748B;">Awaiting Triage</span>'}
             </div>
             <div class="telemetry-widget-main">
-              <span class="telemetry-value-lg">98.6°</span>
-              <span class="telemetry-unit">F</span>
+              ${temp != null ? `
+                <span class="telemetry-value-lg">${temp}°</span>
+                <span class="telemetry-unit">F</span>
+              ` : `
+                <span class="telemetry-value-lg" style="color: #94A3B8;">— °</span>
+                <span class="telemetry-unit">F</span>
+              `}
             </div>
             <div class="telemetry-widget-sub">
-              <span class="status-tag-pill normal">Normal</span>
-              <span>Afebrile</span>
+              ${temp != null ? `
+                <span class="status-tag-pill ${temp >= 100.4 ? 'danger' : 'normal'}">${temp >= 100.4 ? 'Febrile' : 'Normal'}</span>
+                <span>${temp >= 100.4 ? 'Elevated' : 'Afebrile'}</span>
+              ` : `
+                <span style="color: #94A3B8; font-size: 0.72rem;">Unmeasured</span>
+              `}
             </div>
           </div>
         </div>
@@ -949,7 +999,7 @@ function renderPatientOverviewTab(data) {
           <div class="chief-complaint-box">
             <div class="chief-complaint-label">CHIEF CLINICAL PRESENTATION / INTAKE COMPLAINT</div>
             <blockquote class="chief-complaint-quote">
-              &ldquo;${escapeHtml(patient.chiefComplaint || 'Episodes of atypical chest discomfort radiating to left shoulder on exertion, accompanied by episodic palpitations and mild fatigue.')}&rdquo;
+              &ldquo;${escapeHtml(patient.chiefComplaint || 'No chief complaint recorded at intake triage.')}&rdquo;
             </blockquote>
           </div>
 
@@ -1121,12 +1171,12 @@ window.openAddDrugModal = function (patientId, editDrugName = null) {
   const editMed = editDrugName ? existingMeds.find(m => m.name.toLowerCase() === editDrugName.toLowerCase()) : null;
 
   const initialDrug = editMed ? editMed.name : '';
-  const initialDosage = editMed ? editMed.dosage : '500mg';
+  const initialDosage = editMed ? editMed.dosage : '';
   const initialForm = editMed ? (editMed.form || 'Tablet') : 'Tablet';
-  const initialFreq = editMed ? (editMed.frequency || 'Twice Daily [BD]') : 'Twice Daily [BD]';
+  const initialFreq = editMed ? (editMed.frequency || '') : '';
   const initialRoute = editMed ? (editMed.route || 'Oral') : 'Oral';
-  const initialTiming = editMed ? (editMed.timing || 'After Meals') : 'After Meals';
-  const initialDuration = editMed ? (parseInt(editMed.duration) || 5) : 5;
+  const initialTiming = editMed ? (editMed.timing || '') : '';
+  const initialDuration = editMed ? (parseInt(editMed.duration) || '') : '';
   const initialNotes = editMed ? (editMed.instructions || '') : '';
 
   drawerOverlay.innerHTML = `
@@ -1230,7 +1280,7 @@ window.openAddDrugModal = function (patientId, editDrugName = null) {
             </label>
             <div style="display: flex; align-items: center; gap: 8px;">
               <button type="button" class="btn btn-secondary btn-sm" onclick="const el = document.getElementById('addDrugDuration'); el.value = Math.max(1, parseInt(el.value || 1) - 1);">-</button>
-              <input type="number" id="addDrugDuration" class="form-control" style="width: 80px; text-align: center; font-weight: 800;" value="${initialDuration}" min="1" max="90">
+              <input type="number" id="addDrugDuration" class="form-control" style="width: 80px; text-align: center; font-weight: 800;" value="${initialDuration}" placeholder="5" min="1" max="90">
               <button type="button" class="btn btn-secondary btn-sm" onclick="const el = document.getElementById('addDrugDuration'); el.value = parseInt(el.value || 1) + 1;">+</button>
               <span style="font-size: 0.78rem; color: #64748B;">days of inpatient treatment</span>
             </div>
@@ -1323,12 +1373,25 @@ window.handleAddDrugSubmit = function (e, patientId, editingName = null) {
   if (e && e.preventDefault) e.preventDefault();
 
   const name = document.getElementById('addDrugSearchInput')?.value?.trim();
-  const dosage = document.getElementById('addDrugDosage')?.value?.trim() || '500mg';
+  const dosage = document.getElementById('addDrugDosage')?.value?.trim();
   const form = document.getElementById('addDrugFormType')?.value || 'Tablet';
   const freq = document.getElementById('addDrugFrequency')?.value || 'Twice Daily [BD]';
   const route = document.getElementById('addDrugRoute')?.value || 'Oral';
   const timing = document.getElementById('addDrugTiming')?.value || 'After Meals';
-  const durationDays = document.getElementById('addDrugDuration')?.value || '5';
+  const durationDays = document.getElementById('addDrugDuration')?.value?.trim();
+
+  if (!name) {
+    alert('Please enter or select a valid drug name.');
+    return;
+  }
+  if (!dosage) {
+    alert('Please specify the medication dosage (e.g. 500mg, 10ml, etc.).');
+    return;
+  }
+  if (!durationDays || parseInt(durationDays) <= 0) {
+    alert('Please specify a valid duration in days (minimum 1 day).');
+    return;
+  }
   const notes = document.getElementById('addDrugInstructions')?.value?.trim() || '';
 
   if (!name) {
@@ -1516,7 +1579,7 @@ window.printInpatientSummary = function (patientId) {
             <div>MRN / UHID: <strong style="font-family: monospace; color: #0D9488;">${escapeHtml(patient.id)}</strong></div>
             <div>Age / Gender: ${patient.age} yrs • ${escapeHtml(patient.gender || 'Female')}</div>
             <div>Blood Group: <strong>${escapeHtml(patient.bloodGroup || 'A+')}</strong></div>
-            <div>Emergency: ${escapeHtml(patient.emergencyContactName || 'Karthik Iyer')} (${escapeHtml(patient.emergencyContactPhone || '+91 98111 99993')})</div>
+            <div>Emergency: ${escapeHtml(patient.emergencyContactName || '—')} (${escapeHtml(patient.emergencyContactPhone || patient.emergencyContact || '—')})</div>
           </div>
         </div>
         <div>
@@ -1541,23 +1604,23 @@ window.printInpatientSummary = function (patientId) {
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px;">
           <div style="padding: 6px 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">
             <span style="color: #64748B; display: block; font-size: 0.7rem;">Blood Pressure:</span>
-            <strong>120/80 mmHg</strong> (Normal)
+            <strong>${escapeHtml(patient.bloodPressureSystolic && patient.bloodPressureDiastolic ? (patient.bloodPressureSystolic + '/' + patient.bloodPressureDiastolic + ' mmHg') : (patient.bloodPressure || '—'))}</strong>
           </div>
           <div style="padding: 6px 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">
             <span style="color: #64748B; display: block; font-size: 0.7rem;">Heart Rate:</span>
-            <strong>74 bpm</strong> (Resting)
+            <strong>${escapeHtml(patient.heartRate ? (patient.heartRate + ' bpm') : '—')}</strong>
           </div>
           <div style="padding: 6px 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">
             <span style="color: #64748B; display: block; font-size: 0.7rem;">SpO2:</span>
-            <strong>99%</strong> (Room Air)
+            <strong>${escapeHtml(patient.oxygenSaturation ? (patient.oxygenSaturation + '%') : (patient.spO2 ? (patient.spO2 + '%') : '—'))}</strong>
           </div>
           <div style="padding: 6px 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;">
             <span style="color: #64748B; display: block; font-size: 0.7rem;">Temperature:</span>
-            <strong>98.6° F</strong> (Afebrile)
+            <strong>${escapeHtml(patient.bodyTemperature ? (patient.bodyTemperature + '° F') : (patient.temperature ? (patient.temperature + '° F') : '—'))}</strong>
           </div>
         </div>
         <div style="margin-top: 6px;">
-          <span style="color: #64748B;">Chief Complaint:</span> <em>&ldquo;${escapeHtml(patient.chiefComplaint || 'Episodes of atypical chest discomfort radiating to left shoulder on exertion, accompanied by episodic palpitations and mild fatigue.')}&rdquo;</em>
+          <span style="color: #64748B;">Chief Complaint:</span> <em>&ldquo;${escapeHtml(patient.chiefComplaint || 'No chief complaint recorded at intake triage.')}&rdquo;</em>
         </div>
         <div style="margin-top: 4px;">
           <span style="color: #64748B;">Allergy Assessment:</span> <strong style="color: #047857;">${escapeHtml(patient.allergies || 'No Known Drug Allergies - NKDA')}</strong>
@@ -1671,19 +1734,19 @@ function renderConsultationTab(data) {
           <div class="form-grid-4col">
             <div class="form-group">
               <label class="form-label" for="vitalBP">Blood Pressure (mmHg)</label>
-              <input type="text" id="vitalBP" class="form-control" placeholder="120/80" value="120/80">
+              <input type="text" id="vitalBP" class="form-control" placeholder="e.g. 120/80" value="${escapeHtml(patient.bloodPressure || patient.bp || '')}">
             </div>
             <div class="form-group">
               <label class="form-label" for="vitalHR">Pulse / HR (bpm)</label>
-              <input type="text" id="vitalHR" class="form-control" placeholder="72" value="74">
+              <input type="text" id="vitalHR" class="form-control" placeholder="e.g. 72" value="${escapeHtml(patient.heartRate || '')}">
             </div>
             <div class="form-group">
               <label class="form-label" for="vitalSpO2">SpO2 (%)</label>
-              <input type="text" id="vitalSpO2" class="form-control" placeholder="98" value="99">
+              <input type="text" id="vitalSpO2" class="form-control" placeholder="e.g. 98" value="${escapeHtml(patient.spO2 || patient.oxygenSaturation || '')}">
             </div>
             <div class="form-group">
               <label class="form-label" for="vitalTemp">Temperature (°F)</label>
-              <input type="text" id="vitalTemp" class="form-control" placeholder="98.6" value="98.6">
+              <input type="text" id="vitalTemp" class="form-control" placeholder="e.g. 98.6" value="${escapeHtml(patient.temperature || '')}">
             </div>
           </div>
         </div>
@@ -1803,7 +1866,7 @@ window.handleStructuredConsultationSubmit = async function (event, patientId) {
 // 2C. Clean Prescription Builder Tab with Live Duplicate Drug Safety
 // ----------------------------------------------------------------------------
 let currentPrescriptionRows = [
-  { name: 'Metoprolol', dosage: '25 mg', frequency: '2× daily', duration: '7 days', instructions: 'Take with food' }
+  { name: '', dosage: '', frequency: '', duration: '', instructions: '' }
 ];
 
 function renderPrescriptionTab(data) {
@@ -2153,7 +2216,7 @@ window.handlePrescriptionOrderSubmit = async function (event, patientId) {
     window.showToast('✓ Prescription signed and verified against Clinical Safety Engine.', 'success');
 
     currentPrescriptionRows = [
-      { name: 'Metoprolol', dosage: '25 mg', frequency: '2× daily', duration: '7 days', instructions: 'Take with food' }
+      { name: '', dosage: '', frequency: '', duration: '', instructions: '' }
     ];
 
     setTimeout(() => {
@@ -4144,7 +4207,7 @@ window.openReferralPreviewModal = function (ref) {
               </div>
               <div class="referral-meta-row">
                 <span class="meta-label">Contact Number:</span>
-                <span class="meta-val">${escapeHtml(patient.phone || '+91 98765 43210')}</span>
+                <span class="meta-val">${escapeHtml(patient.phone || patient.contact || '—')}</span>
               </div>
               <div class="referral-meta-row">
                 <span class="meta-label">Encounter Status:</span>
@@ -4576,7 +4639,7 @@ window.openRequestDischargeModal = function (defaultPatientId = null) {
           </div>
           <div class="form-group mb-16">
             <label class="form-label" for="dischargeVitals">Vitals at Discharge Clearance</label>
-            <input type="text" id="dischargeVitals" class="form-control" placeholder="BP: 120/80 mmHg, HR: 72 bpm, SpO2: 99%" value="BP: 120/80 mmHg, HR: 74 bpm, SpO2: 98%">
+            <input type="text" id="dischargeVitals" class="form-control" placeholder="BP: 120/80 mmHg, HR: 72 bpm, SpO2: 99%" value="">
           </div>
           <div class="form-group mb-16">
             <label class="form-label" for="dischargeSummary">Clinical Discharge Summary &amp; Treatment Outcome <span class="text-danger">*</span></label>
@@ -4638,5 +4701,15 @@ window.handleDoctorRequestDischargeSubmit = async function (event) {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Sign & Dispatch Discharge Request';
     }
+  }
+};
+
+
+// Global shortcut to open direct prescription workspace
+window.openDirectPrescriptionModal = function (patientId) {
+  if (typeof window.openClinicalWorkspace === 'function') {
+    window.openClinicalWorkspace(patientId, 'prescription');
+  } else if (typeof window.openPatientWorkspace === 'function') {
+    window.openPatientWorkspace(patientId, 'prescriptions');
   }
 };

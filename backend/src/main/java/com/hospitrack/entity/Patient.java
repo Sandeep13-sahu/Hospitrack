@@ -60,6 +60,34 @@ public class Patient {
     @Column(name = "primary_doctor_id", length = 64)
     private String primaryDoctorId;
 
+    @Column(name = "assigned_doctor_id", length = 64)
+    private String assignedDoctorId;
+
+    // Intake Triage Telemetry Fields
+    @Column(name = "blood_pressure_systolic")
+    private Integer bloodPressureSystolic;
+
+    @Column(name = "blood_pressure_diastolic")
+    private Integer bloodPressureDiastolic;
+
+    @Column(name = "heart_rate")
+    private Integer heartRate;
+
+    @Column(name = "oxygen_saturation")
+    private Integer oxygenSaturation;
+
+    @Column(name = "body_temperature")
+    private Double bodyTemperature;
+
+    @Column(name = "rhythm_notes", length = 255)
+    private String rhythmNotes;
+
+    @Column(name = "triage_recorded_at")
+    private LocalDateTime triageRecordedAt;
+
+    @Column(name = "triage_recorded_by", length = 128)
+    private String triageRecordedBy;
+
     @Column(name = "status", nullable = false, length = 32)
     private String status = "CHECKED_IN"; // CHECKED_IN, DISCHARGED, TRANSFER_PENDING, TRANSFERRED
 
@@ -175,7 +203,50 @@ public class Patient {
     public void setCurrentHospitalId(String currentHospitalId) { this.currentHospitalId = currentHospitalId; }
 
     public String getPrimaryDoctorId() { return primaryDoctorId; }
-    public void setPrimaryDoctorId(String primaryDoctorId) { this.primaryDoctorId = primaryDoctorId; }
+    public void setPrimaryDoctorId(String primaryDoctorId) {
+        this.primaryDoctorId = primaryDoctorId;
+        this.assignedDoctorId = primaryDoctorId;
+    }
+
+    public String getAssignedDoctorId() {
+        return assignedDoctorId != null ? assignedDoctorId : primaryDoctorId;
+    }
+    public void setAssignedDoctorId(String assignedDoctorId) {
+        this.assignedDoctorId = assignedDoctorId;
+        this.primaryDoctorId = assignedDoctorId;
+    }
+
+    public Integer getBloodPressureSystolic() { return bloodPressureSystolic; }
+    public void setBloodPressureSystolic(Integer bloodPressureSystolic) { this.bloodPressureSystolic = bloodPressureSystolic; }
+
+    public Integer getBloodPressureDiastolic() { return bloodPressureDiastolic; }
+    public void setBloodPressureDiastolic(Integer bloodPressureDiastolic) { this.bloodPressureDiastolic = bloodPressureDiastolic; }
+
+    public Integer getHeartRate() { return heartRate; }
+    public void setHeartRate(Integer heartRate) { this.heartRate = heartRate; }
+
+    public Integer getOxygenSaturation() { return oxygenSaturation; }
+    public void setOxygenSaturation(Integer oxygenSaturation) { this.oxygenSaturation = oxygenSaturation; }
+
+    public Double getBodyTemperature() { return bodyTemperature; }
+    public void setBodyTemperature(Double bodyTemperature) { this.bodyTemperature = bodyTemperature; }
+
+    public String getRhythmNotes() { return rhythmNotes; }
+    public void setRhythmNotes(String rhythmNotes) { this.rhythmNotes = rhythmNotes; }
+
+    public LocalDateTime getTriageRecordedAt() { return triageRecordedAt; }
+    public void setTriageRecordedAt(LocalDateTime triageRecordedAt) { this.triageRecordedAt = triageRecordedAt; }
+
+    public String getTriageRecordedBy() { return triageRecordedBy; }
+    public void setTriageRecordedBy(String triageRecordedBy) { this.triageRecordedBy = triageRecordedBy; }
+
+    @Transient
+    public String getBloodPressure() {
+        if (bloodPressureSystolic != null && bloodPressureDiastolic != null) {
+            return bloodPressureSystolic + "/" + bloodPressureDiastolic;
+        }
+        return null;
+    }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

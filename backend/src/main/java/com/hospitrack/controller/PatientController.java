@@ -5,6 +5,7 @@ import com.hospitrack.entity.LabReport;
 import com.hospitrack.entity.Patient;
 import com.hospitrack.entity.PatientIntake;
 import com.hospitrack.entity.Prescription;
+import com.hospitrack.entity.TriageVitals;
 import com.hospitrack.entity.Visit;
 import com.hospitrack.repository.LabReportRepository;
 import com.hospitrack.repository.VisitRepository;
@@ -87,7 +88,7 @@ public class PatientController {
         return ResponseEntity.ok(ApiResponse.success("Patient retrieved.", patient));
     }
 
-    @PostMapping
+    @PostMapping(path = {"", "/admit"})
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('HOSPITAL_ADMIN') or hasRole('DOCTOR')")
     public ResponseEntity<ApiResponse<Patient>> registerPatient(
             @Valid @RequestBody PatientRequest request,
@@ -103,7 +104,14 @@ public class PatientController {
             request.setCurrentHospitalId(principal.getHospitalId());
         }
         Patient created = patientService.registerPatient(request, principal.getId(), principal.getRole().name(), principal.getName());
-        return ResponseEntity.ok(ApiResponse.success("Patient registered successfully.", created));
+        return ResponseEntity.ok(ApiResponse.success("Patient admitted and triage vitals recorded successfully.", created));
+    }
+
+    @GetMapping("/{id}/triage-vitals")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or (hasRole('HOSPITAL_ADMIN') and @dataGuard.canAccessPatient(#id)) or (hasRole('DOCTOR') and @dataGuard.canAccessPatient(#id)) or (hasRole('PATIENT') and @dataGuard.canAccessPatient(#id))")
+    public ResponseEntity<ApiResponse<List<TriageVitals>>> getPatientTriageVitals(@PathVariable String id) {
+        List<TriageVitals> vitals = patientService.getPatientTriageVitals(id);
+        return ResponseEntity.ok(ApiResponse.success("Triage vitals retrieved successfully.", vitals));
     }
 
     // -------------------------------------------------------------------------

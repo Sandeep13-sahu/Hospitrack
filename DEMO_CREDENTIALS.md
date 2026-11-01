@@ -14,7 +14,7 @@
 | **SUPER_ADMIN** | `admin@hospitrack.com` | `Admin@Hospitrack2026!` (or `admin123`) | System Administrator | National Directory Oversight, Facility Onboarding, Audit Ledger |
 | **HOSPITAL_ADMIN** | `admin@citygeneral.in` | `Hospital@123!` (or `hospital123`) | City General Hospital Admin (`CGH-01`) | Inpatient Admission, Bed Management, Dispatch Referrals/Transfers |
 | **HOSPITAL_ADMIN** | `operations@apexcare.in` | `Hospital@123!` (or `hospital123`) | Apex Care Medical Center (`ACM-02`) | Inpatient Admission, Bed Management, Triage Inbound Requests |
-| **DOCTOR** | `s.sharma@citygeneral.in` | `Doctor@123!` (or `doctor123`) | Dr. Sarah Sharma (Cardiology) | Clinical Consultations, Prescriptions (Duplicate Drug Check), Labs |
+| **DOCTOR** | `s.sharma@citygeneral.in` | `Doctor@123!` (or `doctor123`) | Dr. Sarah Sharma (Cardiology) | Clinical Consultations, Prescriptions (Duplicate Drug Check), Labns |
 | **DOCTOR** | `dr.sarah@citygeneral.com` | `Doctor@123!` (or `doctor123`) | Dr. Sarah Sharma (Cardiology) | Clinical Consultations, Prescriptions (Duplicate Drug Check), Labs |
 | **DOCTOR** | `dr.arjun@apexcare.com` | `Doctor@123!` (or `doctor123`) | Dr. Arjun Verma (General Medicine) | Clinical Consultations, Prescriptions, Specialist Referrals |
 | **DOCTOR** | `r.verma@apexcare.in` | `Doctor@123!` (or `doctor123`) | Dr. Arjun Verma (General Medicine) | Clinical Consultations, Prescriptions, Specialist Referrals |
@@ -147,3 +147,6 @@
 | **PATIENT** | Aarav Singhania | `patient.1793382965481@gmail.com` | `PatientSecret@123` | 2026-10-30 23:26:05 | `ACTIVE` |
 | **PATIENT** | Meera Nambiar | `meera.1793382966226@gmail.com` | `Meera@Password99` | 2026-10-30 23:26:06 | `ACTIVE` |
 | **PATIENT** | Onboarded Patient | `onboarded6235@test.org` | `PatientInit123!` | 2026-10-30 23:27:46 | `ACTIVE` |
+| **PATIENT** | NIKHIL SHARMA | `nikhilsharma@gmail.com` | `Nikhil@123!` | 2026-11-01 14:45:00 | `ACTIVE` |
+| **PATIENT** | Aarav Patel | `aarav.patel.1793528321808@example.com` | `Patient@123!` | 2026-11-01 15:48:42 | `ACTIVE` |
+| **PATIENT** | Neha Gupta | `neha.gupta.1793528322280@example.com` | `Patient@123!` | 2026-11-01 15:48:42 | `ACTIVE` |

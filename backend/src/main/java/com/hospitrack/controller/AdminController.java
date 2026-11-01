@@ -4,6 +4,8 @@ import com.hospitrack.dto.*;
 import com.hospitrack.entity.Bed;
 import com.hospitrack.entity.Hospital;
 import com.hospitrack.entity.Review;
+import com.hospitrack.entity.Role;
+import com.hospitrack.entity.User;
 import com.hospitrack.exception.BadRequestException;
 import com.hospitrack.repository.*;
 import com.hospitrack.security.UserPrincipal;
@@ -26,6 +28,7 @@ import java.util.Map;
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class AdminController {
 
+    private final UserRepository userRepository;
     private final HospitalRepository hospitalRepository;
     private final DoctorRepository doctorRepository;
     private final PatientRepository patientRepository;
@@ -39,6 +42,7 @@ public class AdminController {
     private final BedService bedService;
 
     public AdminController(
+            UserRepository userRepository,
             HospitalRepository hospitalRepository,
             DoctorRepository doctorRepository,
             PatientRepository patientRepository,
@@ -51,6 +55,7 @@ public class AdminController {
             ReviewService reviewService,
             BedService bedService
     ) {
+        this.userRepository = userRepository;
         this.hospitalRepository = hospitalRepository;
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
@@ -330,5 +335,71 @@ public class AdminController {
     @PostMapping("/reset-demo")
     public ResponseEntity<ApiResponse<String>> resetDemoDatabase(@AuthenticationPrincipal UserPrincipal principal) {
         throw new BadRequestException("Database reset is permanently disabled in production mode.");
+    }
+
+    @GetMapping("/diagnostics/users")
+    public ResponseEntity<ApiResponse<List<UserDiagnosticDto>>> getRegisteredUsersDiagnostics() {
+        List<User> users = userRepository.findAll();
+        List<UserDiagnosticDto> diagnostics = new ArrayList<>();
+
+        for (User user : users) {
+            String hash = user.getPasswordHash();
+            boolean validBcrypt = hash != null && hash.length() == 60 &&
+                    (hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$"));
+
+            boolean profileLinked = false;
+            String profileType = "NONE";
+            String profileId = null;
+
+            if (user.getRole() == Role.PATIENT) {
+                profileType = "PATIENT";
+                profileId = user.getPatientId();
+                if (profileId != null && patientRepository.existsById(profileId)) {
+                    profileLinked = true;
+                } else if (patientRepository.findByEmailIgnoreCase(user.getEmail()).isPresent()) {
+                    profileLinked = true;
+                    profileId = patientRepository.findByEmailIgnoreCase(user.getEmail()).get().getId();
+                }
+            } else if (user.getRole() == Role.DOCTOR) {
+                profileType = "DOCTOR";
+                profileId = user.getDoctorId();
+                if (profileId != null && doctorRepository.existsById(profileId)) {
+                    profileLinked = true;
+                } else if (doctorRepository.findByEmailIgnoreCase(user.getEmail()).isPresent()) {
+                    profileLinked = true;
+                    profileId = doctorRepository.findByEmailIgnoreCase(user.getEmail()).get().getId();
+                }
+            } else if (user.getRole() == Role.HOSPITAL_ADMIN) {
+                profileType = "HOSPITAL";
+                profileId = user.getHospitalId();
+                if (profileId != null && hospitalRepository.existsById(profileId)) {
+                    profileLinked = true;
+                } else if (hospitalRepository.findByEmailIgnoreCase(user.getEmail()).isPresent()) {
+                    profileLinked = true;
+                    profileId = hospitalRepository.findByEmailIgnoreCase(user.getEmail()).get().getId();
+                }
+            } else if (user.getRole() == Role.SUPER_ADMIN) {
+                profileType = "SUPER_ADMIN";
+                profileLinked = true;
+                profileId = user.getId();
+            }
+
+            diagnostics.add(new UserDiagnosticDto(
+                    user.getId(),
+                    user.getName(),
+                    user.getEmail(),
+                    user.getRole(),
+                    user.getStatus(),
+                    validBcrypt,
+                    profileLinked,
+                    profileType,
+                    profileId,
+                    user.getHospitalId(),
+                    user.isEmailVerified(),
+                    user.getCreatedAt()
+            ));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("User authentication diagnostics retrieved.", diagnostics));
     }
 }

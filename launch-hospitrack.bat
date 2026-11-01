@@ -85,7 +85,7 @@ echo       Waiting for Backend Health (http://localhost:8080/api/health)...
 set "BACKEND_UP=0"
 for /L %%i in (1,1,40) do (
     if !BACKEND_UP! equ 0 (
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8080/api/health' -UseBasicParsing -TimeoutSec 1; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>nul
+        curl -s -f -m 2 http://localhost:8080/api/health >nul 2>nul
         if !errorlevel! equ 0 (
             set "BACKEND_UP=1"
         ) else (
@@ -111,7 +111,7 @@ if !BACKEND_UP! equ 0 (
     pause
     exit /b 1
 )
-echo       Backend REST Services are UP & HEALTHY ................. [PASS]
+echo       Backend REST Services are UP AND HEALTHY ............... [PASS]
 
 :: [6/7] Start Frontend Web Server
 echo [6/7] Starting Frontend Web Server on port 8000...
@@ -121,9 +121,9 @@ start "Hospitrack Frontend" /min cmd /c ""%PROJECT_ROOT%runtime\start_frontend.b
 
 :: Wait for Frontend Readiness
 set "FRONTEND_UP=0"
-for /L %%i in (1,1,10) do (
+for /L %%i in (1,1,15) do (
     if !FRONTEND_UP! equ 0 (
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8000' -UseBasicParsing -TimeoutSec 1; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>nul
+        curl -s -f -m 2 http://localhost:8000 >nul 2>nul
         if !errorlevel! equ 0 (
             set "FRONTEND_UP=1"
         ) else (
@@ -138,7 +138,7 @@ if !FRONTEND_UP! equ 0 (
     pause
     exit /b 1
 )
-echo       Frontend Interface is UP & HEALTHY ..................... [PASS]
+echo       Frontend Interface is UP AND HEALTHY ................... [PASS]
 
 :: [7/7] Launch Browser
 echo.

@@ -46,12 +46,12 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("role", userPrincipal.getRole().name());
-        claims.put("name", userPrincipal.getName());
+        claims.put("role", userPrincipal.getRole() != null ? userPrincipal.getRole().name() : "PATIENT");
+        claims.put("name", userPrincipal.getName() != null ? userPrincipal.getName() : "");
         claims.put("hospitalId", userPrincipal.getHospitalId());
         claims.put("doctorId", userPrincipal.getDoctorId());
         claims.put("patientId", userPrincipal.getPatientId());
-        claims.put("status", userPrincipal.getStatus().name());
+        claims.put("status", userPrincipal.getStatus() != null ? userPrincipal.getStatus().name() : "ACTIVE");
 
         return Jwts.builder()
                 .claims(claims)
@@ -67,12 +67,12 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("role", user.getRole().name());
-        claims.put("name", user.getName());
+        claims.put("role", user.getRole() != null ? user.getRole().name() : "PATIENT");
+        claims.put("name", user.getName() != null ? user.getName() : "");
         claims.put("hospitalId", user.getHospitalId());
         claims.put("doctorId", user.getDoctorId());
         claims.put("patientId", user.getPatientId());
-        claims.put("status", user.getStatus().name());
+        claims.put("status", user.getStatus() != null ? user.getStatus().name() : "ACTIVE");
 
         return Jwts.builder()
                 .claims(claims)

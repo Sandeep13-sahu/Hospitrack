@@ -1,7 +1,8 @@
 ====================================================
   HOSPITRACK HEALTHCARE PLATFORM LIVE
   Frontend URL: http://localhost:8000
-  Backend API:  http://localhost:8080 (Operational)
-  Environment:  Production / Development
+  Proxy Target: http://127.0.0.1:8080
+  Environment:  production (Profile: prod)
 ====================================================
+  Backend API:  http://127.0.0.1:8080 (Operational)
 ^C
