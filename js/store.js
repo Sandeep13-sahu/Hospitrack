@@ -204,9 +204,26 @@ class HospitrackStore {
 
       if (!response.ok) {
         if (response.status === 401) {
-          window.hospitrackAuth?.clearSession();
-          if (window.showLoginView) window.showLoginView();
-          const authErr = new Error('Session expired. Please sign in again.');
+          if (window.hospitrackAuth) {
+            try {
+              if (typeof window.hospitrackAuth.logout === 'function') {
+                window.hospitrackAuth.logout().catch(() => {});
+              } else if (typeof window.hospitrackAuth.clearSession === 'function') {
+                window.hospitrackAuth.clearSession();
+              }
+            } catch (e) {}
+          }
+          if (typeof window.showToast === 'function') {
+            window.showToast('Session expired. Please log in again.', 'warning', 5000);
+          } else if (typeof window.showError === 'function') {
+            window.showError('Session expired. Please log in again.');
+          }
+          if (typeof window.showLoginView === 'function') {
+            window.showLoginView();
+          } else if (typeof window.navigateToLogin === 'function') {
+            window.navigateToLogin();
+          }
+          const authErr = new Error('Session expired. Please log in again.');
           authErr.status = 401;
           throw authErr;
         }

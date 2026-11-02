@@ -45,11 +45,20 @@ module.exports = async function proxyHandler(req, res) {
     return;
   }
 
-  // Determine requested subpath
+  // Determine requested subpath and prevent double /api prefixes
   let reqPath = req.url || '/';
+  reqPath = reqPath.replace(/^\/api\/api(?=\/|$)/, '/api');
+
   if (!reqPath.startsWith('/api') && !reqPath.startsWith('/health')) {
     reqPath = '/api' + (reqPath.startsWith('/') ? reqPath : '/' + reqPath);
   }
+
+  // Combine targetUrl base path if custom subpath is provided, avoiding double /api
+  let basePath = targetUrl.pathname ? targetUrl.pathname.replace(/\/+$/, '') : '';
+  if (basePath === '/api' && reqPath.startsWith('/api')) {
+    basePath = '';
+  }
+  const fullPath = (basePath ? basePath : '') + reqPath;
 
   const isHttps = targetUrl.protocol === 'https:';
   const transport = isHttps ? https : http;
@@ -81,7 +90,7 @@ module.exports = async function proxyHandler(req, res) {
   const options = {
     hostname: targetUrl.hostname,
     port: targetPort,
-    path: reqPath,
+    path: fullPath,
     method: req.method,
     headers: outgoingHeaders,
     timeout: 30000

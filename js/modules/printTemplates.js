@@ -27,17 +27,13 @@
     // 1. OFFICIAL PRESCRIPTION SLIP (Print Rx)
     // ------------------------------------------------------------------------
     prescription(payload = {}, store = {}) {
-      const rx = (typeof payload === 'string' && store.getPrescriptionById) ? store.getPrescriptionById(payload) : payload;
-      const patient = (store.getPatientById ? store.getPatientById(rx.patientId) : null) || { name: rx.patientName || 'Ananya Iyer', id: rx.patientId || 'PAT-303', age: 31, gender: 'Female', bloodGroup: 'A+' };
-      const doctor = (store.getDoctorById ? store.getDoctorById(rx.doctorId) : null) || { name: rx.doctorName || 'Dr. Sarah Sharma', specialty: rx.doctorSpecialty || 'Senior Interventional Cardiologist', licenseNo: 'MCI-99401' };
-      const hospital = (store.getHospitalById ? store.getHospitalById(rx.hospitalId) : null) || { name: rx.hospitalName || 'City General Hospital & Research Institute', location: 'Central Healthcare District', contact: '+91 (0) 80 2345 6789' };
+      const rawRx = (typeof payload === 'string' && store.getPrescriptionById) ? store.getPrescriptionById(payload) : payload;
+      const rx = rawRx || {};
+      const patient = (store.getPatientById && rx.patientId ? store.getPatientById(rx.patientId) : null) || { name: rx.patientName || 'Patient Record', id: rx.patientId || 'PAT', age: 30, gender: 'General', bloodGroup: 'O+' };
+      const doctor = (store.getDoctorById && rx.doctorId ? store.getDoctorById(rx.doctorId) : null) || { name: rx.doctorName || 'Attending Physician', specialty: rx.doctorSpecialty || 'General Medicine', licenseNo: 'MCI-VERIFIED' };
+      const hospital = (store.getHospitalById && rx.hospitalId ? store.getHospitalById(rx.hospitalId) : null) || { name: rx.hospitalName || 'Healthcare Facility', location: 'Medical District', contact: '+91 80 2345 6789' };
 
-      const items = safeArray(rx.items).length > 0 ? rx.items : [
-        { name: 'Telmisartan', dosage: '40 mg', form: 'Oral Tablet', frequency: '08:00 AM (Once daily with water)', duration: '60 Days', instructions: 'Monitor seated morning blood pressure. Take consistently.' },
-        { name: 'Clopidogrel (Plavix)', dosage: '75 mg', form: 'Oral Tablet', frequency: '01:00 PM (Once daily with lunch)', duration: '90 Days', instructions: 'Essential antiplatelet therapy. Do not omit doses.' },
-        { name: 'Rosuvastatin Calcium', dosage: '20 mg', form: 'Oral Tablet', frequency: '10:00 PM (Once daily at bedtime)', duration: '90 Days', instructions: 'Lipid-lowering plaque stabilization therapy.' },
-        { name: 'Aspirin (Enteric Coated)', dosage: '81 mg', form: 'Delayed-Release Tablet', frequency: '01:00 PM (Once daily after meal)', duration: '90 Days', instructions: 'Gastric protection. Swallow whole with water.' }
-      ];
+      const items = safeArray(rx.items);
 
       const docUid = rx.id || generateDocumentUid('RX');
       const authHash = generateSecurityHash(docUid);
@@ -109,18 +105,24 @@
               </tr>
             </thead>
             <tbody>
-              ${items.map((item, idx) => `
+              ${items.length > 0 ? items.map((item, idx) => `
                 <tr>
                   <td style="text-align: center; font-weight: 700;">${idx + 1}</td>
                   <td>
-                    <strong>${escapeHtml(item.name)}</strong>
+                    <strong>${escapeHtml(item.name || item.medicineName)}</strong>
                     <div style="font-size: 0.72rem; color: #475569;">${escapeHtml(item.dosage || '')} • ${escapeHtml(item.form || 'Oral Tablet')}</div>
                   </td>
-                  <td><strong>${escapeHtml(item.frequency || 'Once daily with water')}</strong></td>
-                  <td>${escapeHtml(item.duration || '60 Days')}</td>
+                  <td><strong>${escapeHtml(item.frequency || 'As directed')}</strong></td>
+                  <td>${escapeHtml(item.duration || 'Standard Course')}</td>
                   <td>${escapeHtml(item.instructions || 'Take strictly as directed by the prescribing physician.')}</td>
                 </tr>
-              `).join('')}
+              `).join('') : `
+                <tr>
+                  <td colspan="5" style="text-align: center; color: #64748B; padding: 18px; font-style: italic;">
+                    No active medication items recorded for this prescription.
+                  </td>
+                </tr>
+              `}
             </tbody>
           </table>
 
@@ -446,9 +448,29 @@
     // 4. INPATIENT CLINICAL CHART & SUMMARY
     // ------------------------------------------------------------------------
     'inpatient-summary'(payload = {}, store = {}) {
-      const patient = (typeof payload === 'string' && store.getPatientById) ? store.getPatientById(payload) : payload;
+      const p = ((typeof payload === 'string' && store.getPatientById) ? store.getPatientById(payload) : payload) || {};
+      const patient = p;
       const docUid = generateDocumentUid('ADM');
       const authHash = generateSecurityHash(docUid);
+
+      const bp = (p.bloodPressureSystolic && p.bloodPressureDiastolic)
+        ? `${p.bloodPressureSystolic}/${p.bloodPressureDiastolic}`
+        : (p.bloodPressure || '—');
+      const hr = p.heartRate ? `${p.heartRate}` : '—';
+      const spo2 = p.oxygenSaturation ? `${p.oxygenSaturation}%` : '—';
+      const temp = p.bodyTemperature ? `${p.bodyTemperature}°` : '—';
+      const bpStatus = bp !== '—' ? 'Normal / Verified' : 'Awaiting Triage';
+      const hrStatus = hr !== '—' ? 'Sinus Telemetry' : 'Unmeasured';
+      const spo2Status = spo2 !== '—' ? 'Pulse Oximetry' : 'Unmeasured';
+      const tempStatus = temp !== '—' ? 'Thermal Log' : 'Unmeasured';
+
+      const patientRxList = (store.getPrescriptions && p.id ? store.getPrescriptions(p.id) : []) || [];
+      const medItems = [];
+      patientRxList.forEach(rx => {
+        if (Array.isArray(rx.items)) {
+          rx.items.forEach(item => medItems.push(item));
+        }
+      });
 
       return `
         <div class="print-inpatient-summary-sheet print-medical-sheet">
@@ -509,23 +531,23 @@
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px;">
               <div style="background: #FFFFFF; border: 1px solid #E2E8F0; padding: 8px 12px; border-radius: 6px;">
                 <span style="font-size: 0.68rem; color: #64748B; font-weight: 700; text-transform: uppercase;">Blood Pressure</span>
-                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">120/80 <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">mmHg</span></div>
-                <span style="font-size: 0.65rem; color: #059669; font-weight: 700;">Normal</span>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">${escapeHtml(bp)} <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">mmHg</span></div>
+                <span style="font-size: 0.65rem; color: ${bp !== '—' ? '#059669' : '#64748B'}; font-weight: 700;">${bpStatus}</span>
               </div>
               <div style="background: #FFFFFF; border: 1px solid #E2E8F0; padding: 8px 12px; border-radius: 6px;">
                 <span style="font-size: 0.68rem; color: #64748B; font-weight: 700; text-transform: uppercase;">Heart Rate</span>
-                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">74 <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">bpm</span></div>
-                <span style="font-size: 0.65rem; color: #059669; font-weight: 700;">Resting Sinus</span>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">${escapeHtml(hr)} <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">bpm</span></div>
+                <span style="font-size: 0.65rem; color: ${hr !== '—' ? '#059669' : '#64748B'}; font-weight: 700;">${hrStatus}</span>
               </div>
               <div style="background: #FFFFFF; border: 1px solid #E2E8F0; padding: 8px 12px; border-radius: 6px;">
                 <span style="font-size: 0.68rem; color: #64748B; font-weight: 700; text-transform: uppercase;">Oxygen Saturation</span>
-                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">99% <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">SpO2</span></div>
-                <span style="font-size: 0.65rem; color: #059669; font-weight: 700;">Room Air</span>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">${escapeHtml(spo2)} <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">SpO2</span></div>
+                <span style="font-size: 0.65rem; color: ${spo2 !== '—' ? '#059669' : '#64748B'}; font-weight: 700;">${spo2Status}</span>
               </div>
               <div style="background: #FFFFFF; border: 1px solid #E2E8F0; padding: 8px 12px; border-radius: 6px;">
                 <span style="font-size: 0.68rem; color: #64748B; font-weight: 700; text-transform: uppercase;">Body Temperature</span>
-                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">98.6° <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">F</span></div>
-                <span style="font-size: 0.65rem; color: #059669; font-weight: 700;">Afebrile</span>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A;">${escapeHtml(temp)} <span style="font-size: 0.72rem; font-weight: 500; color: #64748B;">F</span></div>
+                <span style="font-size: 0.65rem; color: ${temp !== '—' ? '#059669' : '#64748B'}; font-weight: 700;">${tempStatus}</span>
               </div>
             </div>
           </div>
@@ -544,27 +566,21 @@
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td><strong>Tab. Metoprolol Succinate 25mg</strong></td>
-                  <td>Twice daily (Oral)</td>
-                  <td style="text-align: center;">[ Initial: SV ]</td>
-                  <td style="text-align: center; color: #94A3B8;">—</td>
-                  <td style="text-align: center;">[ Initial: __ ]</td>
-                </tr>
-                <tr>
-                  <td><strong>Tab. Pantoprazole Sodium 40mg</strong></td>
-                  <td>Once daily morning (Oral)</td>
-                  <td style="text-align: center;">[ Initial: SV ]</td>
-                  <td style="text-align: center; color: #94A3B8;">—</td>
-                  <td style="text-align: center; color: #94A3B8;">—</td>
-                </tr>
-                <tr>
-                  <td><strong>Tab. Paracetamol 650mg</strong></td>
-                  <td>TDS (SOS / Oral)</td>
-                  <td style="text-align: center;">[ Initial: SV ]</td>
-                  <td style="text-align: center;">[ Initial: __ ]</td>
-                  <td style="text-align: center;">[ Initial: __ ]</td>
-                </tr>
+                ${medItems.length > 0 ? medItems.map(item => `
+                  <tr>
+                    <td><strong>${escapeHtml(item.name || item.medicineName)} ${escapeHtml(item.dosage || '')}</strong></td>
+                    <td>${escapeHtml(item.frequency || 'As directed')} (${escapeHtml(item.route || 'Oral')})</td>
+                    <td style="text-align: center;">[ Active ]</td>
+                    <td style="text-align: center; color: #94A3B8;">—</td>
+                    <td style="text-align: center;">[ Monitored ]</td>
+                  </tr>
+                `).join('') : `
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: #64748B; padding: 16px; font-style: italic;">
+                      No active inpatient pharmacotherapy regimens currently recorded.
+                    </td>
+                  </tr>
+                `}
               </tbody>
             </table>
           </div>
@@ -595,6 +611,14 @@
         : (payload.patient || payload || {});
       const docUid = generateDocumentUid('DIS');
       const authHash = generateSecurityHash(docUid);
+
+      const patientRxList = (store.getPrescriptions && patient.id ? store.getPrescriptions(patient.id) : []) || [];
+      const dischargeMeds = [];
+      patientRxList.forEach(rx => {
+        if (Array.isArray(rx.items)) {
+          rx.items.forEach(item => dischargeMeds.push(item));
+        }
+      });
 
       return `
         <div class="print-medical-sheet print-discharge-sheet">
@@ -680,34 +704,21 @@
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>1</td>
-                  <td><strong>Tab. Rosuvastatin 20mg</strong></td>
-                  <td>0-0-1 (Once daily at bedtime)</td>
-                  <td>60 Days</td>
-                  <td>Plaque stabilization</td>
-                </tr>
-                <tr>
-                  <td>2</td>
-                  <td><strong>Tab. Aspirin 81mg (Ecosprin)</strong></td>
-                  <td>0-1-0 (Once daily after lunch)</td>
-                  <td>90 Days</td>
-                  <td>Antiplatelet therapy</td>
-                </tr>
-                <tr>
-                  <td>3</td>
-                  <td><strong>Tab. Ticagrelor 90mg (Brilinta)</strong></td>
-                  <td>1-0-1 (Twice daily after food)</td>
-                  <td>90 Days</td>
-                  <td>Stent thrombosis prevention</td>
-                </tr>
-                <tr>
-                  <td>4</td>
-                  <td><strong>Tab. Telmisartan 40mg</strong></td>
-                  <td>1-0-0 (Once daily morning)</td>
-                  <td>60 Days</td>
-                  <td>Blood pressure control</td>
-                </tr>
+                ${dischargeMeds.length > 0 ? dischargeMeds.map((m, idx) => `
+                  <tr>
+                    <td>${idx + 1}</td>
+                    <td><strong>${escapeHtml(m.name || m.medicineName)} ${escapeHtml(m.dosage || '')}</strong></td>
+                    <td>${escapeHtml(m.frequency || 'As directed')} (${escapeHtml(m.timing || 'After meals')})</td>
+                    <td>${escapeHtml(m.duration || 'Standard')}</td>
+                    <td>${escapeHtml(m.instructions || 'Outpatient pharmacotherapy regimen')}</td>
+                  </tr>
+                `).join('') : `
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: #64748B; padding: 14px; font-style: italic;">
+                      No ongoing outpatient medication regimen specified at discharge.
+                    </td>
+                  </tr>
+                `}
               </tbody>
             </table>
           </div>
@@ -817,18 +828,25 @@
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td><code>RX-805</code></td>
-                  <td><strong>Dr. Sarah Sharma, MD</strong></td>
-                  <td>Telmisartan 40mg (OD); Clopidogrel 75mg (OD); Rosuvastatin 20mg (OD HS); Aspirin 81mg (OD)</td>
-                  <td>Oct 26, 2026</td>
-                </tr>
-                <tr>
-                  <td><code>RX-760</code></td>
-                  <td><strong>Dr. Sarah Sharma, MD</strong></td>
-                  <td>Telmisartan 20mg (OD) — Completed / Uptitrated</td>
-                  <td>Sep 18, 2026</td>
-                </tr>
+                ${prescriptions && prescriptions.length > 0 ? prescriptions.map(rx => {
+                  const medNames = Array.isArray(rx.items) && rx.items.length > 0
+                    ? rx.items.map(i => `${i.name || i.medicineName} ${i.dosage || ''} (${i.frequency || 'OD'})`).join('; ')
+                    : (rx.instructions || 'Standard medication regimen');
+                  return `
+                    <tr>
+                      <td><code>${escapeHtml(rx.id || 'RX')}</code></td>
+                      <td><strong>${escapeHtml(rx.doctorName || 'Attending Physician')}</strong></td>
+                      <td>${escapeHtml(medNames)}</td>
+                      <td>${formatDate(rx.prescribedAt || rx.createdAt || new Date())}</td>
+                    </tr>
+                  `;
+                }).join('') : `
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: #64748B; padding: 14px; font-style: italic;">
+                      No historical prescriptions recorded on file for this patient.
+                    </td>
+                  </tr>
+                `}
               </tbody>
             </table>
           </div>
@@ -847,20 +865,21 @@
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td><code>LAB-301</code></td>
-                  <td><strong>Fasting Lipid &amp; Metabolic Panel</strong></td>
-                  <td>Total Chol: 182 mg/dL; Trig: 144; LDL: 99</td>
-                  <td><span class="print-status-pill norm">FINAL</span></td>
-                  <td>Oct 26, 2026</td>
-                </tr>
-                <tr>
-                  <td><code>LAB-289</code></td>
-                  <td><strong>12-Lead Diagnostic Electrocardiogram</strong></td>
-                  <td>Normal sinus rhythm; physiologic PR interval</td>
-                  <td><span class="print-status-pill norm">FINAL</span></td>
-                  <td>Oct 12, 2026</td>
-                </tr>
+                ${labs && labs.length > 0 ? labs.map(l => `
+                  <tr>
+                    <td><code>${escapeHtml(l.id || 'LAB')}</code></td>
+                    <td><strong>${escapeHtml(l.testName || 'Diagnostic Investigation')}</strong></td>
+                    <td>${escapeHtml(l.resultSummary || l.result || 'Within normal physiological limits')}</td>
+                    <td><span class="print-status-pill norm">${escapeHtml(l.status || 'FINAL')}</span></td>
+                    <td>${formatDate(l.reportDate || l.timestamp || new Date())}</td>
+                  </tr>
+                `).join('') : `
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: #64748B; padding: 14px; font-style: italic;">
+                      No diagnostic laboratory reports currently on file.
+                    </td>
+                  </tr>
+                `}
               </tbody>
             </table>
           </div>
@@ -950,10 +969,10 @@
             <div style="background: #F8FAFC; border: 1px solid #CBD5E1; padding: 10px; border-radius: 6px;">
               <div class="print-section-sub">RECORDED VITALS &amp; FINDINGS</div>
               <div style="font-size: 0.78rem; font-weight: 700; color: #0D9488; margin-top: 4px;">
-                ${escapeHtml(c.vitals || 'BP: 120/76 mmHg • Pulse: 72 bpm • SpO2: 98%')}
+                ${escapeHtml(c.vitals || 'Vitals: Within normal limits / Not recorded at encounter')}
               </div>
               <p style="font-size: 0.76rem; color: #475569; margin: 4px 0 0 0; font-style: italic;">
-                "${escapeHtml(c.notes || 'Steady ventricular recovery, peripheral pulses intact.')}"
+                "${escapeHtml(c.notes || 'Clinical consultation completed without acute distress.')}"
               </p>
             </div>
           </div>

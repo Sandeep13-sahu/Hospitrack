@@ -157,14 +157,21 @@ function renderDoctorMainView(tab, data) {
 // 1. Doctor Dashboard Home (Clinical Header, 4 KPI Cards, Queue, Side Activity)
 // ----------------------------------------------------------------------------
 function renderDoctorDashboardHome(data) {
-  const { doctor, hospital, allPatients, myPrescriptions, myLabs, myReferrals } = data;
+  const { doctor, hospital, allPatients, myPrescriptions, myLabs, myReferrals } = data || {};
   const store = window.hospitrackStore;
 
+  const doc = doctor || {};
+  const hosp = hospital || {};
+  const patientsList = Array.isArray(allPatients) ? allPatients : [];
+  const referralsList = Array.isArray(myReferrals) ? myReferrals : [];
+
   // Real KPI Calculations
-  const totalPatientsToday = allPatients.filter(p => p.status !== 'DISCHARGED').length || allPatients.length;
-  const pendingConsultations = allPatients.filter(p => p.status === 'CHECKED_IN' || p.status === 'TRANSFER_PENDING' || p.status === 'WAITING').length;
-  const activeReferralsCount = myReferrals.filter(r => r.status === 'PENDING' || r.status === 'IN_PROGRESS').length;
-  const recentActivities = store.getRecentActivities(doctor.id, doctor.hospitalId).slice(0, 5);
+  const totalPatientsToday = patientsList.filter(p => p?.status !== 'DISCHARGED').length || patientsList.length;
+  const pendingConsultations = patientsList.filter(p => p?.status === 'CHECKED_IN' || p?.status === 'TRANSFER_PENDING' || p?.status === 'WAITING').length;
+  const activeReferralsCount = referralsList.filter(r => r?.status === 'PENDING' || r?.status === 'IN_PROGRESS').length;
+  const recentActivities = (store && typeof store.getRecentActivities === 'function')
+    ? (store.getRecentActivities(doc.id, doc.hospitalId) || []).slice(0, 5)
+    : [];
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -179,15 +186,15 @@ function renderDoctorDashboardHome(data) {
       <div class="doctor-header-left">
         <div class="doctor-dept-pill">
           <span class="dept-dot"></span>
-          <span class="dept-name">${escapeHtml(doctor.specialty || 'Cardiology')}</span>
+          <span class="dept-name">${escapeHtml(doc.specialty || 'General Medicine')}</span>
           <span class="dept-sep">•</span>
-          <span class="dept-hosp">${escapeHtml(hospital.name)}</span>
+          <span class="dept-hosp">${escapeHtml(hosp.name || 'Healthcare Facility')}</span>
         </div>
-        <h1 class="doctor-greeting-title">${getGreetingByTime()}, ${escapeHtml(doctor.name)}</h1>
+        <h1 class="doctor-greeting-title">${getGreetingByTime()}, ${escapeHtml(doc.name || 'Doctor')}</h1>
         <p class="doctor-header-sub">
           <span>📅 ${formattedDate}</span>
           <span>•</span>
-          <span>License: <code>${escapeHtml(doctor.licenseNo || 'MCI-VERIFIED')}</code></span>
+          <span>License: <code>${escapeHtml(doc.licenseNo || 'MCI-VERIFIED')}</code></span>
           <span>•</span>
           <span class="text-success font-weight-bold">● Active &amp; On Duty</span>
         </p>
@@ -341,13 +348,14 @@ function renderDoctorDashboardHome(data) {
 // Queue Filter Tabs Sub-Renderer with Real Counts
 // ----------------------------------------------------------------------------
 function renderQueueFilterTabs(allPatients) {
+  const patientsList = Array.isArray(allPatients) ? allPatients : [];
   const currentDocId = window.hospitrackAuth?.getCurrentUser()?.doctorId;
-  const myAssignedCount = allPatients.filter(p => currentDocId && (p.assignedDoctorId === currentDocId || p.primaryDoctorId === currentDocId)).length;
-  const allCount = allPatients.length;
-  const checkedInCount = allPatients.filter(p => p.status === 'CHECKED_IN').length;
-  const waitingCount = allPatients.filter(p => p.status === 'WAITING' || p.status === 'ACTIVE').length;
-  const transferCount = allPatients.filter(p => p.status === 'TRANSFER_PENDING').length;
-  const completedCount = allPatients.filter(p => p.status === 'COMPLETED' || p.status === 'DISCHARGED').length;
+  const myAssignedCount = patientsList.filter(p => currentDocId && (p?.assignedDoctorId === currentDocId || p?.primaryDoctorId === currentDocId)).length;
+  const allCount = patientsList.length;
+  const checkedInCount = patientsList.filter(p => p?.status === 'CHECKED_IN').length;
+  const waitingCount = patientsList.filter(p => p?.status === 'WAITING' || p?.status === 'ACTIVE').length;
+  const transferCount = patientsList.filter(p => p?.status === 'TRANSFER_PENDING').length;
+  const completedCount = patientsList.filter(p => p?.status === 'COMPLETED' || p?.status === 'DISCHARGED').length;
 
   return `
     <div class="queue-filter-pills">
@@ -377,28 +385,28 @@ function renderQueueFilterTabs(allPatients) {
 // Clinical Queue Table Sub-Renderer
 // ----------------------------------------------------------------------------
 function renderClinicalQueueTable(allPatients) {
-  let filtered = allPatients;
+  let filtered = Array.isArray(allPatients) ? [...allPatients] : [];
 
   if (queueFilterStatus !== 'ALL') {
     if (queueFilterStatus === 'MY_PATIENTS') {
       const currentDocId = window.hospitrackAuth?.getCurrentUser()?.doctorId;
-      filtered = filtered.filter(p => currentDocId && (p.assignedDoctorId === currentDocId || p.primaryDoctorId === currentDocId));
+      filtered = filtered.filter(p => currentDocId && (p?.assignedDoctorId === currentDocId || p?.primaryDoctorId === currentDocId));
     } else if (queueFilterStatus === 'WAITING') {
-      filtered = filtered.filter(p => p.status === 'WAITING' || p.status === 'ACTIVE');
+      filtered = filtered.filter(p => p?.status === 'WAITING' || p?.status === 'ACTIVE');
     } else if (queueFilterStatus === 'COMPLETED') {
-      filtered = filtered.filter(p => p.status === 'COMPLETED' || p.status === 'DISCHARGED');
+      filtered = filtered.filter(p => p?.status === 'COMPLETED' || p?.status === 'DISCHARGED');
     } else {
-      filtered = filtered.filter(p => p.status === queueFilterStatus);
+      filtered = filtered.filter(p => p?.status === queueFilterStatus);
     }
   }
 
   if (queueSearchQuery.trim()) {
     const q = queueSearchQuery.toLowerCase().trim();
     filtered = filtered.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q) ||
-      (p.bloodGroup && p.bloodGroup.toLowerCase().includes(q)) ||
-      (p.diagnosis && p.diagnosis.toLowerCase().includes(q))
+      (p?.name || '').toLowerCase().includes(q) ||
+      (p?.id || '').toLowerCase().includes(q) ||
+      (p?.bloodGroup && p.bloodGroup.toLowerCase().includes(q)) ||
+      (p?.diagnosis && p.diagnosis.toLowerCase().includes(q))
     );
   }
 

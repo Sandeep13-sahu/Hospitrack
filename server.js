@@ -182,7 +182,8 @@ function normalizeDatabaseUrl(rawUrl) {
     queryParams.delete('password');
   }
 
-  if (host.includes('supabase') && !queryParams.has('sslmode')) {
+  const isLocalDb = host === 'localhost' || host === '127.0.0.1' || host === 'host.docker.internal';
+  if ((host.includes('supabase') || !isLocalDb) && !queryParams.has('sslmode')) {
     queryParams.set('sslmode', 'require');
   }
   if (port === '6543' && !queryParams.has('prepareThreshold')) {

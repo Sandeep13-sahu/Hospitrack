@@ -94,11 +94,12 @@ window.renderHospitalDashboard = function(container, subtab = null, editMode = f
     const prescriptions = (store && typeof store.getPrescriptions === 'function') ? (store.getPrescriptions() || []) : [];
     const labs = (store && typeof store.getLabs === 'function') ? (store.getLabs(null, null, hospitalId) || []) : [];
 
-    const totalBeds = Number(hospital.totalBeds) || 100;
-    const availableBeds = hospital.availableBeds != null ? Number(hospital.availableBeds) : 20;
+    const hosp = hospital || {};
+    const totalBeds = Number(hosp.totalBeds) || 100;
+    const availableBeds = hosp.availableBeds != null ? Number(hosp.availableBeds) : 20;
     const occupiedBeds = Math.max(0, totalBeds - availableBeds);
     const occupancyPct = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
-    const pendingTransfers = transfers.filter(t => t && t.toHospitalId === hospitalId && t.status === 'PENDING');
+    const pendingTransfers = (Array.isArray(transfers) ? transfers : []).filter(t => t && t.toHospitalId === hospitalId && t.status === 'PENDING');
 
     let subContentHtml = '';
     try {
@@ -251,10 +252,13 @@ function renderHospitalSection(tab, data = {}) {
 
   // 1. OVERVIEW / DASHBOARD
   if (tab === 'overview' || !tab || tab === 'dashboard') {
-    const admittedPatients = patients.filter(p => p.status === 'CHECKED_IN').length;
-    const pendingReferrals = referrals.filter(r => r.status === 'PENDING');
-    const pendingDischarges = patients.filter(p => p.dischargeStatus === 'DOCTOR_APPROVED' || p.dischargeStatus === 'CLEARANCE_PENDING' || p.status === 'DOCTOR_APPROVED');
-    const doctorsOnDuty = doctors.filter(d => d.status === 'ACTIVE' || !d.status).length;
+    const patientList = Array.isArray(patients) ? patients : [];
+    const referralList = Array.isArray(referrals) ? referrals : [];
+    const doctorList = Array.isArray(doctors) ? doctors : [];
+    const admittedPatients = patientList.filter(p => p?.status === 'CHECKED_IN').length;
+    const pendingReferrals = referralList.filter(r => r?.status === 'PENDING');
+    const pendingDischarges = patientList.filter(p => p?.dischargeStatus === 'DOCTOR_APPROVED' || p?.dischargeStatus === 'CLEARANCE_PENDING' || p?.status === 'DOCTOR_APPROVED');
+    const doctorsOnDuty = doctorList.filter(d => d?.status === 'ACTIVE' || !d?.status).length;
 
     // Ward breakdown calculation
     const icuTotal = Math.max(10, Math.round(totalBeds * 0.15));
