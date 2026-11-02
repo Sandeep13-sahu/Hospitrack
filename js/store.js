@@ -2070,14 +2070,19 @@ class HospitrackStore {
     if (hospitalId) {
       formData.append('hospitalId', hospitalId);
     }
-    const token = window.hospitrackAuth ? window.hospitrackAuth.getToken() : null;
-    const response = await fetch(`${getApiBaseUrl()}/api/hospital/profile/logo`, {
-      method: 'POST',
-      headers: {
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
-      body: formData
-    });
+    const token = window.hospitrackAuth ? (window.hospitrackAuth.getAccessToken?.() || window.hospitrackAuth.getToken?.()) : null;
+    let response;
+    try {
+      response = await fetch(`${getApiBaseUrl()}/api/hospital/profile/logo`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: formData
+      });
+    } catch (netErr) {
+      throw new Error('Unable to connect to Hospitrack API services. Please ensure the backend server is running.');
+    }
     const json = await response.json();
     if (!response.ok) {
       throw new Error(json.message || 'Failed to upload hospital logo');

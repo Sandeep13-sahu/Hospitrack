@@ -4,9 +4,11 @@
  */
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { URL } = require('url');
 
 const PORT = parseInt(process.env.PORT, 10) || 8000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -24,8 +26,22 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const BACKEND_PORT = parseInt(process.env.BACKEND_PORT, 10) || 8080;
-const BACKEND_HOST = process.env.BACKEND_HOST || '127.0.0.1';
+const RAW_BACKEND_URL = (process.env.BACKEND_URL || process.env.API_BASE_URL || '').trim();
+let BACKEND_TARGET = null;
+if (RAW_BACKEND_URL) {
+  try {
+    BACKEND_TARGET = new URL(RAW_BACKEND_URL.replace(/\/+$/, ''));
+  } catch (e) {
+    console.warn(`[Server] Warning: Invalid BACKEND_URL "${RAW_BACKEND_URL}", falling back to BACKEND_HOST/PORT.`);
+  }
+}
+
+const BACKEND_IS_HTTPS = BACKEND_TARGET ? BACKEND_TARGET.protocol === 'https:' : false;
+const BACKEND_TRANSPORT = BACKEND_IS_HTTPS ? https : http;
+const BACKEND_HOST = BACKEND_TARGET ? BACKEND_TARGET.hostname : (process.env.BACKEND_HOST || '127.0.0.1');
+const BACKEND_PORT = BACKEND_TARGET
+  ? (BACKEND_TARGET.port ? parseInt(BACKEND_TARGET.port, 10) : (BACKEND_IS_HTTPS ? 443 : 80))
+  : (parseInt(process.env.BACKEND_PORT, 10) || 8080);
 
 /**
  * Normalizes PostgreSQL connection URLs for Spring Boot / JDBC compatibility.
@@ -232,7 +248,7 @@ function resolveDatabaseConfig() {
 
 function checkBackendHealth(host, port) {
   return new Promise((resolve) => {
-    const req = http.request({
+    const req = BACKEND_TRANSPORT.request({
       hostname: host,
       port: port,
       path: '/api/health',
@@ -250,7 +266,7 @@ function checkBackendHealth(host, port) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   // CORS & Security Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -283,15 +299,20 @@ const server = http.createServer(async (req, res) => {
 
   // Proxy /api/* requests to Spring Boot backend
   if (reqPath.startsWith('/api/') || reqPath === '/api') {
-    const proxyReq = http.request({
+    const targetHostHeader = `${BACKEND_HOST}${BACKEND_TARGET && BACKEND_TARGET.port ? ':' + BACKEND_PORT : ''}`;
+    const proxyHeaders = {
+      ...req.headers,
+      host: targetHostHeader
+    };
+    delete proxyHeaders['connection'];
+    delete proxyHeaders['keep-alive'];
+
+    const proxyReq = BACKEND_TRANSPORT.request({
       hostname: BACKEND_HOST,
       port: BACKEND_PORT,
       path: req.url,
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: `${BACKEND_HOST}:${BACKEND_PORT}`
-      }
+      headers: proxyHeaders
     }, (proxyRes) => {
       res.writeHead(proxyRes.statusCode, proxyRes.headers);
       proxyRes.pipe(res, { end: true });
@@ -301,7 +322,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         success: false,
-        message: 'Unable to connect to Hospitrack API services. Please ensure the backend server is running.'
+        message: 'Unable to connect to Hospitrack API services. Please ensure the backend server is running.',
+        error: err.message
       }));
     });
 
@@ -351,7 +373,9 @@ const server = http.createServer(async (req, res) => {
       }
     });
   });
-});
+}
+
+const server = http.createServer(handleRequest);
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -558,5 +582,6 @@ if (require.main === module) {
 module.exports = {
   normalizeDatabaseUrl,
   resolveDatabaseConfig,
+  handleRequest,
   server
 };

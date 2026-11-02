@@ -5,7 +5,11 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/((?!api|css|js|data|.*\\..*).*)",
+      "source": "/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/((?!api|css|js|data|assets|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

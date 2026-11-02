@@ -46,6 +46,10 @@ class AuthService {
     return this.accessToken;
   }
 
+  getToken() {
+    return this.getAccessToken();
+  }
+
   getCurrentUser() {
     if (!this.currentUser) {
       this.currentUser = this.loadStoredUser();
@@ -265,93 +269,108 @@ class AuthService {
 
   async updateProfile(profileData) {
     if (!this.accessToken) throw new Error('Not authenticated.');
-    const response = await fetch(`${this.getApiBaseUrl()}/api/auth/profile`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.accessToken}`
-      },
-      body: JSON.stringify(profileData)
-    });
+    try {
+      const response = await fetch(`${this.getApiBaseUrl()}/api/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.accessToken}`
+        },
+        body: JSON.stringify(profileData)
+      });
 
-    let json = {};
-    try { json = await response.json(); } catch (e) {}
+      let json = {};
+      try { json = await response.json(); } catch (e) {}
 
-    if (!response.ok || !json.success) {
-      const errorMsg = json.message || 'Failed to update profile details.';
-      const error = new Error(errorMsg);
-      error.status = response.status;
-      error.data = json;
-      throw error;
+      if (!response.ok || !json.success) {
+        const errorMsg = json.message || 'Failed to update profile details.';
+        const error = new Error(errorMsg);
+        error.status = response.status;
+        error.data = json;
+        throw error;
+      }
+
+      if (json.data) {
+        this.currentUser = json.data;
+        const keys = this.config.STORAGE_KEYS;
+        const storage = localStorage.getItem(keys.AUTH_USER) ? localStorage : sessionStorage;
+        storage.setItem(keys.AUTH_USER, JSON.stringify(this.currentUser));
+      }
+      return json.data;
+    } catch (err) {
+      if (err.status) throw err;
+      throw new Error('Unable to connect to Hospitrack API services. Please ensure the backend server is running.');
     }
-
-    if (json.data) {
-      this.currentUser = json.data;
-      const keys = this.config.STORAGE_KEYS;
-      const storage = localStorage.getItem(keys.AUTH_USER) ? localStorage : sessionStorage;
-      storage.setItem(keys.AUTH_USER, JSON.stringify(this.currentUser));
-    }
-    return json.data;
   }
 
   async uploadProfilePhoto(photoDataUrl) {
     if (!this.accessToken) throw new Error('Not authenticated.');
-    const response = await fetch(`${this.getApiBaseUrl()}/api/auth/profile/photo`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.accessToken}`
-      },
-      body: JSON.stringify({ photo: photoDataUrl })
-    });
+    try {
+      const response = await fetch(`${this.getApiBaseUrl()}/api/auth/profile/photo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.accessToken}`
+        },
+        body: JSON.stringify({ photo: photoDataUrl })
+      });
 
-    let json = {};
-    try { json = await response.json(); } catch (e) {}
+      let json = {};
+      try { json = await response.json(); } catch (e) {}
 
-    if (!response.ok || !json.success) {
-      const errorMsg = json.message || 'Failed to upload profile photo.';
-      const error = new Error(errorMsg);
-      error.status = response.status;
-      error.data = json;
-      throw error;
+      if (!response.ok || !json.success) {
+        const errorMsg = json.message || 'Failed to upload profile photo.';
+        const error = new Error(errorMsg);
+        error.status = response.status;
+        error.data = json;
+        throw error;
+      }
+
+      if (json.data) {
+        this.currentUser = json.data;
+        const keys = this.config.STORAGE_KEYS;
+        const storage = localStorage.getItem(keys.AUTH_USER) ? localStorage : sessionStorage;
+        storage.setItem(keys.AUTH_USER, JSON.stringify(this.currentUser));
+      }
+      return json.data;
+    } catch (err) {
+      if (err.status) throw err;
+      throw new Error('Unable to connect to Hospitrack API services. Please ensure the backend server is running.');
     }
-
-    if (json.data) {
-      this.currentUser = json.data;
-      const keys = this.config.STORAGE_KEYS;
-      const storage = localStorage.getItem(keys.AUTH_USER) ? localStorage : sessionStorage;
-      storage.setItem(keys.AUTH_USER, JSON.stringify(this.currentUser));
-    }
-    return json.data;
   }
 
   async removeProfilePhoto() {
     if (!this.accessToken) throw new Error('Not authenticated.');
-    const response = await fetch(`${this.getApiBaseUrl()}/api/auth/profile/photo`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${this.accessToken}`
+    try {
+      const response = await fetch(`${this.getApiBaseUrl()}/api/auth/profile/photo`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      });
+
+      let json = {};
+      try { json = await response.json(); } catch (e) {}
+
+      if (!response.ok || !json.success) {
+        const errorMsg = json.message || 'Failed to remove profile photo.';
+        const error = new Error(errorMsg);
+        error.status = response.status;
+        error.data = json;
+        throw error;
       }
-    });
 
-    let json = {};
-    try { json = await response.json(); } catch (e) {}
-
-    if (!response.ok || !json.success) {
-      const errorMsg = json.message || 'Failed to remove profile photo.';
-      const error = new Error(errorMsg);
-      error.status = response.status;
-      error.data = json;
-      throw error;
+      if (json.data) {
+        this.currentUser = json.data;
+        const keys = this.config.STORAGE_KEYS;
+        const storage = localStorage.getItem(keys.AUTH_USER) ? localStorage : sessionStorage;
+        storage.setItem(keys.AUTH_USER, JSON.stringify(this.currentUser));
+      }
+      return json.data;
+    } catch (err) {
+      if (err.status) throw err;
+      throw new Error('Unable to connect to Hospitrack API services. Please ensure the backend server is running.');
     }
-
-    if (json.data) {
-      this.currentUser = json.data;
-      const keys = this.config.STORAGE_KEYS;
-      const storage = localStorage.getItem(keys.AUTH_USER) ? localStorage : sessionStorage;
-      storage.setItem(keys.AUTH_USER, JSON.stringify(this.currentUser));
-    }
-    return json.data;
   }
 
   async refreshCurrentUser() {
@@ -378,26 +397,31 @@ class AuthService {
     if (!this.accessToken) {
       throw new Error('Not authenticated.');
     }
-    const response = await fetch(`${this.getApiBaseUrl()}/api/auth/change-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.accessToken}`
-      },
-      body: JSON.stringify({ currentPassword, newPassword })
-    });
+    try {
+      const response = await fetch(`${this.getApiBaseUrl()}/api/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.accessToken}`
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
 
-    let json = {};
-    try { json = await response.json(); } catch (e) {}
+      let json = {};
+      try { json = await response.json(); } catch (e) {}
 
-    if (!response.ok || !json.success) {
-      const errorMsg = json.message || 'Failed to update password.';
-      const error = new Error(errorMsg);
-      error.status = response.status;
-      error.data = json;
-      throw error;
+      if (!response.ok || !json.success) {
+        const errorMsg = json.message || 'Failed to update password.';
+        const error = new Error(errorMsg);
+        error.status = response.status;
+        error.data = json;
+        throw error;
+      }
+      return json;
+    } catch (err) {
+      if (err.status) throw err;
+      throw new Error('Unable to connect to Hospitrack API services. Please ensure the backend server is running.');
     }
-    return json;
   }
 
   async logout() {
