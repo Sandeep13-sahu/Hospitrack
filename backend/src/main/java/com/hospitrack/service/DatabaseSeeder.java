@@ -294,6 +294,10 @@ public class DatabaseSeeder implements CommandLineRunner {
         hospitalRepository.save(h2);
         hospitalRepository.save(h3);
 
+        bedService.initializeHospitalBeds(h1);
+        bedService.initializeHospitalBeds(h2);
+        bedService.initializeHospitalBeds(h3);
+
         // 2. Hospital Admin Users
         User uHosp1 = new User("USER-HOSP-101", "City General Hospital Admin", "admin@citygeneral.in",
                 passwordEncoder.encode("Hospital@123!"), Role.HOSPITAL_ADMIN);

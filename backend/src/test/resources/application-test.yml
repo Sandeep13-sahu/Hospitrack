@@ -24,5 +24,7 @@ app:
     initial-email: admin@hospitrack.com
     initial-password: Admin@Hospitrack2026!
   seed-demo-credentials: false
+  rate-limiting:
+    enabled: false
   security:
     bcrypt-strength: 4

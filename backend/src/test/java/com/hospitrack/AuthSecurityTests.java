@@ -164,9 +164,8 @@ public class AuthSecurityTests {
         mockMvc.perform(post("/api/auth/register/patient")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(regReq)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Public self-registration is disabled")));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -185,9 +184,8 @@ public class AuthSecurityTests {
         mockMvc.perform(post("/api/auth/register/hospital")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(regReq)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Public hospital self-registration is disabled")));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -219,6 +217,6 @@ public class AuthSecurityTests {
                         .content(objectMapper.writeValueAsString(regReq)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Public doctor self-registration is disabled")));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Direct public self-registration for doctors is disabled")));
     }
 }

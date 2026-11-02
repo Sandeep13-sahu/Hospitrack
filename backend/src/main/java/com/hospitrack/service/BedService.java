@@ -45,6 +45,10 @@ public class BedService {
         Hospital hospital = hospitalRepository.findById(Objects.requireNonNull(hospitalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found: " + hospitalId));
 
+        if (bedRepository.countByHospitalId(hospitalId) == 0) {
+            initializeHospitalBeds(hospital);
+        }
+
         List<Bed> beds = bedRepository.findByHospitalIdOrderByWardIdAscBedNumberAsc(hospitalId);
         if (beds.isEmpty()) {
             initializeHospitalBeds(hospital);
@@ -120,6 +124,10 @@ public class BedService {
     public Bed assignBed(String hospitalId, AssignBedRequest request, String actorId, String actorRole, String actorName) {
         Hospital hospital = hospitalRepository.findById(Objects.requireNonNull(hospitalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found: " + hospitalId));
+
+        if (bedRepository.countByHospitalId(hospitalId) == 0) {
+            initializeHospitalBeds(hospital);
+        }
 
         Patient patient = patientRepository.findById(Objects.requireNonNull(request.getPatientId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found: " + request.getPatientId()));
@@ -205,6 +213,10 @@ public class BedService {
         Hospital hospital = hospitalRepository.findById(Objects.requireNonNull(hospitalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found: " + hospitalId));
 
+        if (bedRepository.countByHospitalId(hospitalId) == 0) {
+            initializeHospitalBeds(hospital);
+        }
+
         Bed bed = bedRepository.findById(Objects.requireNonNull(bedId))
                 .or(() -> bedRepository.findByHospitalIdAndBedNumber(hospitalId, bedId))
                 .orElseThrow(() -> new ResourceNotFoundException("Bed not found: " + bedId));
@@ -262,6 +274,10 @@ public class BedService {
     public Bed releaseFromMaintenance(String hospitalId, String bedId, String actorId, String actorRole, String actorName) {
         Hospital hospital = hospitalRepository.findById(Objects.requireNonNull(hospitalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found: " + hospitalId));
+
+        if (bedRepository.countByHospitalId(hospitalId) == 0) {
+            initializeHospitalBeds(hospital);
+        }
 
         Bed bed = bedRepository.findById(Objects.requireNonNull(bedId))
                 .or(() -> bedRepository.findByHospitalIdAndBedNumber(hospitalId, bedId))
@@ -348,6 +364,10 @@ public class BedService {
         Hospital hospital = hospitalRepository.findById(Objects.requireNonNull(hospitalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found: " + hospitalId));
 
+        if (bedRepository.countByHospitalId(hospitalId) == 0) {
+            initializeHospitalBeds(hospital);
+        }
+
         Bed bed = bedRepository.findById(Objects.requireNonNull(bedId))
                 .or(() -> bedRepository.findByHospitalIdAndBedNumber(hospitalId, bedId))
                 .orElseThrow(() -> new ResourceNotFoundException("Bed not found: " + bedId));
@@ -376,6 +396,10 @@ public class BedService {
     public Bed completeEvsCleaning(String hospitalId, String bedId, String staffName, String actorId, String actorRole, String actorName) {
         Hospital hospital = hospitalRepository.findById(Objects.requireNonNull(hospitalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found: " + hospitalId));
+
+        if (bedRepository.countByHospitalId(hospitalId) == 0) {
+            initializeHospitalBeds(hospital);
+        }
 
         Bed bed = bedRepository.findById(Objects.requireNonNull(bedId))
                 .or(() -> bedRepository.findByHospitalIdAndBedNumber(hospitalId, bedId))
@@ -414,6 +438,10 @@ public class BedService {
     public Bed inspectAndReleaseBed(String hospitalId, String bedId, String inspectorName, String actorId, String actorRole, String actorName) {
         Hospital hospital = hospitalRepository.findById(Objects.requireNonNull(hospitalId))
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found: " + hospitalId));
+
+        if (bedRepository.countByHospitalId(hospitalId) == 0) {
+            initializeHospitalBeds(hospital);
+        }
 
         Bed bed = bedRepository.findById(Objects.requireNonNull(bedId))
                 .or(() -> bedRepository.findByHospitalIdAndBedNumber(hospitalId, bedId))

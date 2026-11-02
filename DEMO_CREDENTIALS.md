@@ -150,3 +150,46 @@
 | **PATIENT** | NIKHIL SHARMA | `nikhilsharma@gmail.com` | `Nikhil@123!` | 2026-11-01 14:45:00 | `ACTIVE` |
 | **PATIENT** | Aarav Patel | `aarav.patel.1793528321808@example.com` | `Patient@123!` | 2026-11-01 15:48:42 | `ACTIVE` |
 | **PATIENT** | Neha Gupta | `neha.gupta.1793528322280@example.com` | `Patient@123!` | 2026-11-01 15:48:42 | `ACTIVE` |
+| **PATIENT** | Kavita Rao | `kavita.1793530879641@gmail.com` | `KavitaPass@2026` | 2026-11-01 16:31:19 | `ACTIVE` |
+| **DOCTOR** | Dr. Rohit Sen | `dr.rohit.1793530880237@citygeneral.in` | `RohitSecure@2026` | 2026-11-01 16:31:20 | `ACTIVE` |
+| **DOCTOR** | Dr. Workstation Test | `dr.work.1793530880351@citygeneral.in` | `DoctorWork@123!` | 2026-11-01 16:31:20 | `ACTIVE` |
+| **DOCTOR** | Dr. Anand Kulkarni | `dr.anand.1793530880504@citygeneral.in` | `DoctorPass@123!` | 2026-11-01 16:31:20 | `ACTIVE` |
+| **PATIENT** | Aarav Singhania | `patient.1793530880549@gmail.com` | `PatientSecret@123` | 2026-11-01 16:31:20 | `ACTIVE` |
+| **PATIENT** | Meera Nambiar | `meera.1793530880888@gmail.com` | `Meera@Password99` | 2026-11-01 16:31:20 | `ACTIVE` |
+| **PATIENT** | New Patient User | `newpatient1793530881022@email.com` | `SecurePass123!` | 2026-11-01 16:31:21 | `ACTIVE` |
+| **HOSPITAL_ADMIN** | St. Jude Care Center | `facility1793530881258@hospital.org` | `HospitalAdmin123!` | 2026-11-01 16:31:21 | `PENDING_APPROVAL` |
+| **PATIENT** | Onboarded Patient | `onboarded1661@test.org` | `PatientInit123!` | 2026-11-01 16:31:21 | `ACTIVE` |
+| **DOCTOR** | Dr. Rahul Verma | `dr.rahul.1793530883216@citygeneral.in` | `DoctorSecret@123` | 2026-11-01 16:31:23 | `ACTIVE` |
+| **DOCTOR** | Dr. Login Test | `dr.login.1793530883345@citygeneral.in` | `DocPassword@123` | 2026-11-01 16:31:23 | `ACTIVE` |
+| **DOCTOR** | Dr. Vivek Nambiar | `dr.test.3443@citygeneral.in` | `Doctor@123!` | 2026-11-01 16:31:23 | `ACTIVE` |
+| **PATIENT** | Amit Verma | `amit.verma@testmail.com` | `SecurePass123!` | 2026-11-01 16:31:24 | `ACTIVE` |
+| **PATIENT** | Login Ready Patient | `intakepatient1793530884771@test.org` | `PatientSecretPass@123` | 2026-11-01 16:31:24 | `ACTIVE` |
+| **PATIENT** | Prashant Kumar | `prashant@gmai.com` | `nikhil@123!` | 2026-11-01 16:50:30 | `ACTIVE` |
+| **PATIENT** | Kavita Rao | `kavita.1793534399702@gmail.com` | `KavitaPass@2026` | 2026-11-01 17:29:59 | `ACTIVE` |
+| **DOCTOR** | Dr. Rohit Sen | `dr.rohit.1793534400086@citygeneral.in` | `RohitSecure@2026` | 2026-11-01 17:30:00 | `ACTIVE` |
+| **DOCTOR** | Dr. Workstation Test | `dr.work.1793534400179@citygeneral.in` | `DoctorWork@123!` | 2026-11-01 17:30:00 | `ACTIVE` |
+| **DOCTOR** | Dr. Anand Kulkarni | `dr.anand.1793534400304@citygeneral.in` | `DoctorPass@123!` | 2026-11-01 17:30:00 | `ACTIVE` |
+| **PATIENT** | Aarav Singhania | `patient.1793534400347@gmail.com` | `PatientSecret@123` | 2026-11-01 17:30:00 | `ACTIVE` |
+| **PATIENT** | Meera Nambiar | `meera.1793534400576@gmail.com` | `Meera@Password99` | 2026-11-01 17:30:00 | `ACTIVE` |
+| **PATIENT** | New Patient User | `newpatient1793534400681@email.com` | `SecurePass123!` | 2026-11-01 17:30:00 | `ACTIVE` |
+| **HOSPITAL_ADMIN** | St. Jude Care Center | `facility1793534400837@hospital.org` | `HospitalAdmin123!` | 2026-11-01 17:30:00 | `PENDING_APPROVAL` |
+| **PATIENT** | Onboarded Patient | `onboarded1262@test.org` | `PatientInit123!` | 2026-11-01 17:30:01 | `ACTIVE` |
+| **DOCTOR** | Dr. Rahul Verma | `dr.rahul.1793534402806@citygeneral.in` | `DoctorSecret@123` | 2026-11-01 17:30:02 | `ACTIVE` |
+| **DOCTOR** | Dr. Login Test | `dr.login.1793534402898@citygeneral.in` | `DocPassword@123` | 2026-11-01 17:30:02 | `ACTIVE` |
+| **DOCTOR** | Dr. Vivek Nambiar | `dr.test.3046@citygeneral.in` | `Doctor@123!` | 2026-11-01 17:30:03 | `ACTIVE` |
+| **PATIENT** | Amit Verma | `amit.verma@testmail.com` | `SecurePass123!` | 2026-11-01 17:30:04 | `ACTIVE` |
+| **PATIENT** | Login Ready Patient | `intakepatient1793534404463@test.org` | `PatientSecretPass@123` | 2026-11-01 17:30:04 | `ACTIVE` |
+| **PATIENT** | Kavita Rao | `kavita.1793534451809@gmail.com` | `KavitaPass@2026` | 2026-11-01 17:30:52 | `ACTIVE` |
+| **DOCTOR** | Dr. Rohit Sen | `dr.rohit.1793534452210@citygeneral.in` | `RohitSecure@2026` | 2026-11-01 17:30:52 | `ACTIVE` |
+| **DOCTOR** | Dr. Workstation Test | `dr.work.1793534452312@citygeneral.in` | `DoctorWork@123!` | 2026-11-01 17:30:52 | `ACTIVE` |
+| **DOCTOR** | Dr. Anand Kulkarni | `dr.anand.1793534452455@citygeneral.in` | `DoctorPass@123!` | 2026-11-01 17:30:52 | `ACTIVE` |
+| **PATIENT** | Aarav Singhania | `patient.1793534452533@gmail.com` | `PatientSecret@123` | 2026-11-01 17:30:52 | `ACTIVE` |
+| **PATIENT** | Meera Nambiar | `meera.1793534452765@gmail.com` | `Meera@Password99` | 2026-11-01 17:30:52 | `ACTIVE` |
+| **PATIENT** | New Patient User | `newpatient1793534452891@email.com` | `SecurePass123!` | 2026-11-01 17:30:52 | `ACTIVE` |
+| **HOSPITAL_ADMIN** | St. Jude Care Center | `facility1793534453041@hospital.org` | `HospitalAdmin123!` | 2026-11-01 17:30:53 | `PENDING_APPROVAL` |
+| **PATIENT** | Onboarded Patient | `onboarded3476@test.org` | `PatientInit123!` | 2026-11-01 17:30:53 | `ACTIVE` |
+| **DOCTOR** | Dr. Rahul Verma | `dr.rahul.1793534454941@citygeneral.in` | `DoctorSecret@123` | 2026-11-01 17:30:54 | `ACTIVE` |
+| **DOCTOR** | Dr. Login Test | `dr.login.1793534455034@citygeneral.in` | `DocPassword@123` | 2026-11-01 17:30:55 | `ACTIVE` |
+| **DOCTOR** | Dr. Vivek Nambiar | `dr.test.5159@citygeneral.in` | `Doctor@123!` | 2026-11-01 17:30:55 | `ACTIVE` |
+| **PATIENT** | Amit Verma | `amit.verma@testmail.com` | `SecurePass123!` | 2026-11-01 17:30:56 | `ACTIVE` |
+| **PATIENT** | Login Ready Patient | `intakepatient1793534456495@test.org` | `PatientSecretPass@123` | 2026-11-01 17:30:56 | `ACTIVE` |

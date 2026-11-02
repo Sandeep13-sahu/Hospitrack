@@ -153,9 +153,14 @@ echo.
 echo   To stop Hospitrack cleanly, run: stop-hospitrack.bat
 echo ==============================================================================
 echo.
-echo [OK] Opening default web browser to http://localhost:8000...
-start "" "http://localhost:8000"
+if not "%~1"=="--no-browser" if not "%~2"=="--no-browser" (
+    echo [OK] Opening default web browser to http://localhost:8000...
+    start "" "http://localhost:8000"
+)
 
 echo.
 echo Hospitrack is active. You may minimize this terminal or close it when finished.
-pause
+if not "%~1"=="--no-pause" if not "%~2"=="--no-pause" (
+    pause
+)
+exit /b 0

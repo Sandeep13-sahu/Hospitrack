@@ -328,7 +328,7 @@ public class AuthService {
     public ApiResponse<UserDto> register(RegisterRequest request) {
         Role role = request.getRole() != null ? request.getRole() : Role.PATIENT;
         if (role == Role.SUPER_ADMIN) {
-            throw new BadRequestException("Registration for SUPER_ADMIN role is strictly prohibited.");
+            throw new org.springframework.security.access.AccessDeniedException("Registration for SUPER_ADMIN role is strictly prohibited.");
         }
         if (role == Role.HOSPITAL_ADMIN) {
             return registerHospital(request);

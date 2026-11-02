@@ -18,6 +18,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class RateLimitingFilter extends OncePerRequestFilter {
 
+    @org.springframework.beans.factory.annotation.Value("${app.rate-limiting.enabled:true}")
+    private boolean rateLimitingEnabled;
+
     private final Map<String, RequestBucket> ipBuckets = new ConcurrentHashMap<>();
     private static final int MAX_REQUESTS_PER_MINUTE = 60; // generous for test & demo, protects against DoS/bruteforce
 
@@ -34,6 +37,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
             throws ServletException, IOException {
+
+        if (!rateLimitingEnabled) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String path = request.getRequestURI();
         if (path != null && (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/forgot-password") || path.startsWith("/api/auth/register"))) {

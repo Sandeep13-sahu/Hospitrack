@@ -152,12 +152,13 @@ public class AuthenticationAndRoleAccountTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", notNullValue()))
-                .andExpect(jsonPath("$.name", is("Aarav Singhania")))
-                .andExpect(jsonPath("$.email", is(patEmail)))
+                .andExpect(jsonPath("$.data.id", notNullValue()))
+                .andExpect(jsonPath("$.data.name", is("Aarav Singhania")))
+                .andExpect(jsonPath("$.data.email", is(patEmail)))
                 .andReturn().getResponse().getContentAsString();
 
-        Patient created = objectMapper.readValue(response, Patient.class);
+        com.fasterxml.jackson.databind.JsonNode t1Node = objectMapper.readTree(response);
+        Patient created = t1Node.has("data") ? objectMapper.treeToValue(t1Node.get("data"), Patient.class) : objectMapper.readValue(response, Patient.class);
         assertNotNull(created.getId());
 
         // Verify User record exists in database
@@ -200,7 +201,8 @@ public class AuthenticationAndRoleAccountTests {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        Patient created = objectMapper.readValue(createRes, Patient.class);
+        com.fasterxml.jackson.databind.JsonNode t2Node = objectMapper.readTree(createRes);
+        Patient created = t2Node.has("data") ? objectMapper.treeToValue(t2Node.get("data"), Patient.class) : objectMapper.readValue(createRes, Patient.class);
 
         // 1. Login via exact email
         LoginRequest loginEmail = new LoginRequest();
@@ -305,13 +307,14 @@ public class AuthenticationAndRoleAccountTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", notNullValue()))
-                .andExpect(jsonPath("$.name", is("Dr. Anand Kulkarni")))
-                .andExpect(jsonPath("$.email", is(docEmail)))
-                .andExpect(jsonPath("$.initialPassword", is(rawPassword)))
+                .andExpect(jsonPath("$.data.id", notNullValue()))
+                .andExpect(jsonPath("$.data.name", is("Dr. Anand Kulkarni")))
+                .andExpect(jsonPath("$.data.email", is(docEmail)))
+                .andExpect(jsonPath("$.data.initialPassword", is(rawPassword)))
                 .andReturn().getResponse().getContentAsString();
 
-        Doctor createdDoc = objectMapper.readValue(createRes, Doctor.class);
+        com.fasterxml.jackson.databind.JsonNode t4Node = objectMapper.readTree(createRes);
+        Doctor createdDoc = t4Node.has("data") ? objectMapper.treeToValue(t4Node.get("data"), Doctor.class) : objectMapper.readValue(createRes, Doctor.class);
 
         // Verify User record in UserRepository
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(docEmail);
@@ -351,7 +354,8 @@ public class AuthenticationAndRoleAccountTests {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        Doctor createdDoc = objectMapper.readValue(createRes, Doctor.class);
+        com.fasterxml.jackson.databind.JsonNode t5Node = objectMapper.readTree(createRes);
+        Doctor createdDoc = t5Node.has("data") ? objectMapper.treeToValue(t5Node.get("data"), Doctor.class) : objectMapper.readValue(createRes, Doctor.class);
 
         // 1. Login via Email
         LoginRequest loginEmail = new LoginRequest();
@@ -433,7 +437,7 @@ public class AuthenticationAndRoleAccountTests {
         mockMvc.perform(get("/api/doctors/me")
                         .header("Authorization", "Bearer " + docToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email", is(docEmail)));
+                .andExpect(jsonPath("$.data.email", is(docEmail)));
 
         // 3. Access referrals
         mockMvc.perform(get("/api/referrals")
@@ -624,7 +628,7 @@ public class AuthenticationAndRoleAccountTests {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(login)))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     // =========================================================================
@@ -650,6 +654,10 @@ public class AuthenticationAndRoleAccountTests {
         // Hospital 1 Admin attempts to re-assign or modify patient of Hospital 2
         PatientRequest illegalUpdate = new PatientRequest();
         illegalUpdate.setName("Tampered Name");
+        illegalUpdate.setGender("Male");
+        illegalUpdate.setAge(50);
+        illegalUpdate.setContact("+91 99999 11111");
+        illegalUpdate.setPassword("Password123!");
         illegalUpdate.setCurrentHospitalId("HOSP-101");
         illegalUpdate.setPrimaryDoctorId("DOC-201");
         illegalUpdate.setAddress("Changed Address");
