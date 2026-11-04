@@ -193,3 +193,34 @@
 | **DOCTOR** | Dr. Vivek Nambiar | `dr.test.5159@citygeneral.in` | `Doctor@123!` | 2026-11-01 17:30:55 | `ACTIVE` |
 | **PATIENT** | Amit Verma | `amit.verma@testmail.com` | `SecurePass123!` | 2026-11-01 17:30:56 | `ACTIVE` |
 | **PATIENT** | Login Ready Patient | `intakepatient1793534456495@test.org` | `PatientSecretPass@123` | 2026-11-01 17:30:56 | `ACTIVE` |
+| **PATIENT** | Onboarded Patient | `onboarded2423@test.org` | `PatientInit123!` | 2026-11-03 00:46:12 | `ACTIVE` |
+| **PATIENT** | Kavita Rao | `kavita.1793646994408@gmail.com` | `KavitaPass@2026` | 2026-11-03 00:46:34 | `ACTIVE` |
+| **DOCTOR** | Dr. Rohit Sen | `dr.rohit.1793646994782@citygeneral.in` | `RohitSecure@2026` | 2026-11-03 00:46:34 | `ACTIVE` |
+| **DOCTOR** | Dr. Workstation Test | `dr.work.1793646994877@citygeneral.in` | `DoctorWork@123!` | 2026-11-03 00:46:34 | `ACTIVE` |
+| **DOCTOR** | Dr. Anand Kulkarni | `dr.anand.1793646994989@citygeneral.in` | `DoctorPass@123!` | 2026-11-03 00:46:35 | `ACTIVE` |
+| **PATIENT** | Aarav Singhania | `patient.1793646995040@gmail.com` | `PatientSecret@123` | 2026-11-03 00:46:35 | `ACTIVE` |
+| **PATIENT** | Meera Nambiar | `meera.1793646995233@gmail.com` | `Meera@Password99` | 2026-11-03 00:46:35 | `ACTIVE` |
+| **PATIENT** | New Patient User | `newpatient1793646995320@email.com` | `SecurePass123!` | 2026-11-03 00:46:35 | `ACTIVE` |
+| **HOSPITAL_ADMIN** | St. Jude Care Center | `facility1793646995441@hospital.org` | `HospitalAdmin123!` | 2026-11-03 00:46:35 | `PENDING_APPROVAL` |
+| **PATIENT** | Onboarded Patient | `onboarded5840@test.org` | `PatientInit123!` | 2026-11-03 00:46:35 | `ACTIVE` |
+| **DOCTOR** | Dr. Rahul Verma | `dr.rahul.1793646997021@citygeneral.in` | `DoctorSecret@123` | 2026-11-03 00:46:37 | `ACTIVE` |
+| **DOCTOR** | Dr. Login Test | `dr.login.1793646997114@citygeneral.in` | `DocPassword@123` | 2026-11-03 00:46:37 | `ACTIVE` |
+| **DOCTOR** | Dr. Vivek Nambiar | `dr.test.7211@citygeneral.in` | `Doctor@123!` | 2026-11-03 00:46:37 | `ACTIVE` |
+| **PATIENT** | Amit Verma | `amit.verma@testmail.com` | `SecurePass123!` | 2026-11-03 00:46:38 | `ACTIVE` |
+| **PATIENT** | Login Ready Patient | `intakepatient1793646998419@test.org` | `PatientSecretPass@123` | 2026-11-03 00:46:38 | `ACTIVE` |
+| **PATIENT** | QA Medication Audit Patient | `qa.medtest.1793649235733@hospitrack.org` | `Patient@123!` | 2026-11-03 01:23:55 | `ACTIVE` |
+| **PATIENT** | QA Medication Audit Patient | `qa.medtest.1793649659300@hospitrack.org` | `Patient@123!` | 2026-11-03 01:30:59 | `ACTIVE` |
+| **PATIENT** | Kavita Rao | `kavita.1793649703156@gmail.com` | `KavitaPass@2026` | 2026-11-03 01:31:43 | `ACTIVE` |
+| **DOCTOR** | Dr. Rohit Sen | `dr.rohit.1793649703496@citygeneral.in` | `RohitSecure@2026` | 2026-11-03 01:31:43 | `ACTIVE` |
+| **DOCTOR** | Dr. Workstation Test | `dr.work.1793649703614@citygeneral.in` | `DoctorWork@123!` | 2026-11-03 01:31:43 | `ACTIVE` |
+| **DOCTOR** | Dr. Anand Kulkarni | `dr.anand.1793649703728@citygeneral.in` | `DoctorPass@123!` | 2026-11-03 01:31:43 | `ACTIVE` |
+| **PATIENT** | Aarav Singhania | `patient.1793649703774@gmail.com` | `PatientSecret@123` | 2026-11-03 01:31:43 | `ACTIVE` |
+| **PATIENT** | Meera Nambiar | `meera.1793649703974@gmail.com` | `Meera@Password99` | 2026-11-03 01:31:43 | `ACTIVE` |
+| **PATIENT** | New Patient User | `newpatient1793649704065@email.com` | `SecurePass123!` | 2026-11-03 01:31:44 | `ACTIVE` |
+| **HOSPITAL_ADMIN** | St. Jude Care Center | `facility1793649704190@hospital.org` | `HospitalAdmin123!` | 2026-11-03 01:31:44 | `PENDING_APPROVAL` |
+| **PATIENT** | Onboarded Patient | `onboarded4617@test.org` | `PatientInit123!` | 2026-11-03 01:31:44 | `ACTIVE` |
+| **DOCTOR** | Dr. Rahul Verma | `dr.rahul.1793649705836@citygeneral.in` | `DoctorSecret@123` | 2026-11-03 01:31:45 | `ACTIVE` |
+| **DOCTOR** | Dr. Login Test | `dr.login.1793649705921@citygeneral.in` | `DocPassword@123` | 2026-11-03 01:31:45 | `ACTIVE` |
+| **DOCTOR** | Dr. Vivek Nambiar | `dr.test.6018@citygeneral.in` | `Doctor@123!` | 2026-11-03 01:31:46 | `ACTIVE` |
+| **PATIENT** | Amit Verma | `amit.verma@testmail.com` | `SecurePass123!` | 2026-11-03 01:31:47 | `ACTIVE` |
+| **PATIENT** | Login Ready Patient | `intakepatient1793649707179@test.org` | `PatientSecretPass@123` | 2026-11-03 01:31:47 | `ACTIVE` |

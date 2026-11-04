@@ -184,11 +184,22 @@ public class DatabaseConfig {
             queryParams.remove("password");
         }
 
+        // Defensively strip template brackets if copied from documentation like [YOUR-PASSWORD]
+        if (username.startsWith("[") && username.endsWith("]")) {
+            username = username.substring(1, username.length() - 1);
+        }
+        if (password.startsWith("[") && password.endsWith("]")) {
+            password = password.substring(1, password.length() - 1);
+        }
+
         if (host.contains("supabase") && !queryParams.containsKey("sslmode")) {
             queryParams.put("sslmode", "require");
         }
         if ("6543".equals(port) && !queryParams.containsKey("prepareThreshold")) {
             queryParams.put("prepareThreshold", "0");
+        }
+        if (!queryParams.containsKey("tcpKeepAlive")) {
+            queryParams.put("tcpKeepAlive", "true");
         }
 
         StringBuilder search = new StringBuilder();
@@ -207,10 +218,13 @@ public class DatabaseConfig {
 
         String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + "/" + (StringUtils.hasText(dbName) ? dbName : "postgres") + search.toString();
 
+        String resolvedUsername = StringUtils.hasText(username) ? username : (StringUtils.hasText(defaultUsername) ? defaultUsername : "postgres");
+        String resolvedPassword = StringUtils.hasText(password) ? password : (defaultPassword != null ? defaultPassword : "");
+
         return new NormalizedDbConfig(
             jdbcUrl,
-            StringUtils.hasText(defaultUsername) ? defaultUsername : username,
-            StringUtils.hasText(defaultPassword) ? defaultPassword : password,
+            resolvedUsername,
+            resolvedPassword,
             host,
             port,
             dbName,

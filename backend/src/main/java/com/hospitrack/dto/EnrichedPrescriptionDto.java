@@ -19,6 +19,8 @@ public class EnrichedPrescriptionDto {
     private LocalDateTime prescribedAt;
     private List<PrescriptionItem> items = new ArrayList<>();
     private String diagnosis;
+    private String orderType = "INPATIENT";
+    private String instructions;
     private boolean active = true;
     private String sourceAttribution;
     private String whyCanISeeThis;
@@ -63,6 +65,12 @@ public class EnrichedPrescriptionDto {
 
     public String getDiagnosis() { return diagnosis; }
     public void setDiagnosis(String diagnosis) { this.diagnosis = diagnosis; }
+
+    public String getOrderType() { return orderType != null ? orderType : "INPATIENT"; }
+    public void setOrderType(String orderType) { this.orderType = orderType; }
+
+    public String getInstructions() { return instructions; }
+    public void setInstructions(String instructions) { this.instructions = instructions; }
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }

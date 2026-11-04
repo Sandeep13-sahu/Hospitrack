@@ -683,44 +683,133 @@ function renderPatientSubtab(subtab, data) {
 // ----------------------------------------------------------------------------
 window.__patientClinicalChartState = window.__patientClinicalChartState || {};
 
+const CLINICAL_FREQUENCIES = [
+  { id: 'OD', code: 'Once Daily (OD)', label: 'Once Daily (OD)', sub: '1 dose / 24h [08:00]', times: '08:00', type: 'scheduled' },
+  { id: 'BD', code: 'Twice Daily (BD)', label: 'Twice Daily (BD)', sub: 'Every 12h (2 doses)', times: '08:00, 20:00', type: 'scheduled' },
+  { id: 'TDS', code: 'Thrice Daily (TDS)', label: 'Thrice Daily (TDS)', sub: 'Every 8h (3 doses)', times: '08:00, 14:00, 20:00', type: 'scheduled' },
+  { id: 'QID', code: 'Four Times Daily (QID)', label: 'Four Times Daily (QID)', sub: 'Every 6h (4 doses)', times: '06:00, 12:00, 18:00, 22:00', type: 'scheduled' },
+  { id: 'Q4H', code: 'Every 4 Hours (q4h)', label: 'Every 4 Hours (q4h)', sub: '6 doses / 24h', times: '08:00, 12:00, 16:00, 20:00, 00:00, 04:00', type: 'interval' },
+  { id: 'Q6H', code: 'Every 6 Hours (q6h)', label: 'Every 6 Hours (q6h)', sub: '4 doses / 24h', times: '08:00, 14:00, 20:00, 02:00', type: 'interval' },
+  { id: 'Q8H', code: 'Every 8 Hours (q8h)', label: 'Every 8 Hours (q8h)', sub: '3 doses / 24h', times: '08:00, 16:00, 00:00', type: 'interval' },
+  { id: 'Q12H', code: 'Every 12 Hours (q12h)', label: 'Every 12 Hours (q12h)', sub: '2 doses / 24h', times: '08:00, 20:00', type: 'interval' },
+  { id: 'STAT', code: 'STAT', label: 'STAT (Immediate Single Dose)', sub: 'One-time immediate order', times: 'Immediate', type: 'stat' },
+  { id: 'PRN', code: 'SOS / PRN', label: 'SOS / PRN (As Needed)', sub: 'Pro re nata with condition', times: 'As indicated', type: 'prn' }
+];
+
+function buildClinicalScheduleTag(m) {
+  const freq = m?.frequency || '';
+  const timing = m?.mealTiming || m?.timing || 'After Meals';
+  if (m?.isStat || freq.toUpperCase().includes('STAT')) {
+    return '⚡ STAT (Single Immediate Dose)';
+  }
+  if (m?.isPrn || freq.toUpperCase().includes('SOS') || freq.toUpperCase().includes('PRN')) {
+    const ind = m.prnIndication ? ` • ${m.prnIndication}` : '';
+    const interval = m.prnMinIntervalHours ? ` (Min ${m.prnMinIntervalHours}h apart)` : '';
+    return `🔔 SOS / PRN (As Needed)${ind}${interval}`;
+  }
+  if (freq.includes('OD') || freq.toLowerCase().includes('once daily')) {
+    return `1 - 0 - 0 • ${timing} [08:00]`;
+  }
+  if (freq.includes('BD') || freq.toLowerCase().includes('twice daily')) {
+    return `1 - 0 - 1 • ${timing} [08:00, 20:00]`;
+  }
+  if (freq.includes('TDS') || freq.toLowerCase().includes('thrice daily')) {
+    return `1 - 1 - 1 • ${timing} [08:00, 14:00, 20:00]`;
+  }
+  if (freq.includes('QID') || freq.toLowerCase().includes('four times')) {
+    return `1 - 1 - 1 - 1 • ${timing} [06:00, 12:00, 18:00, 22:00]`;
+  }
+  if (freq.toLowerCase().includes('q4h') || freq.toLowerCase().includes('every 4')) {
+    return `q4h (6 doses/24h) • ${m.administrationTimes || '08:00, 12:00, 16:00, 20:00, 00:00, 04:00'}`;
+  }
+  if (freq.toLowerCase().includes('q6h') || freq.toLowerCase().includes('every 6')) {
+    return `q6h (4 doses/24h) • ${m.administrationTimes || '08:00, 14:00, 20:00, 02:00'}`;
+  }
+  if (freq.toLowerCase().includes('q8h') || freq.toLowerCase().includes('every 8')) {
+    return `q8h (3 doses/24h) • ${m.administrationTimes || '08:00, 16:00, 00:00'}`;
+  }
+  if (freq.toLowerCase().includes('q12h') || freq.toLowerCase().includes('every 12')) {
+    return `q12h (2 doses/24h) • ${m.administrationTimes || '08:00, 20:00'}`;
+  }
+  return `${freq}${timing ? ` • ${timing}` : ''}`;
+}
+
 const COMMON_DRUG_CATALOG = [
-  { name: 'Paracetamol (Acetaminophen)', dosage: '500mg', form: 'Tablet', defaultFreq: 'Thrice Daily [TDS]', defaultRoute: 'Oral', defaultTiming: 'After Meals', category: 'Analgesic & Antipyretic' },
-  { name: 'Amoxicillin-Clavulanate (Augmentin)', dosage: '625mg', form: 'Tablet', defaultFreq: 'Twice Daily [BD]', defaultRoute: 'Oral', defaultTiming: 'With Meals', category: 'Broad-Spectrum Antibiotic' },
-  { name: 'Atorvastatin Calcium (Lipitor)', dosage: '20mg', form: 'Tablet', defaultFreq: 'Once Daily [OD]', defaultRoute: 'Oral', defaultTiming: 'Bedtime (HS)', category: 'Lipid-Lowering Agent' },
-  { name: 'Aspirin (Ecosprin Gastro-resistant)', dosage: '75mg', form: 'Tablet', defaultFreq: 'Once Daily [OD]', defaultRoute: 'Oral', defaultTiming: 'After Meals', category: 'Antiplatelet Therapy' },
-  { name: 'Metoprolol Succinate (Betaloc)', dosage: '25mg', form: 'Tablet', defaultFreq: 'Twice Daily [BD]', defaultRoute: 'Oral', defaultTiming: 'After Meals', category: 'Beta-Blocker / Antianginal' },
-  { name: 'Pantoprazole Sodium (Pan-40)', dosage: '40mg', form: 'Tablet', defaultFreq: 'Once Daily [OD]', defaultRoute: 'Oral', defaultTiming: 'Before Meals', category: 'Proton Pump Inhibitor' },
-  { name: 'Ceftriaxone Sodium (Monocef)', dosage: '1g', form: 'IV Infusion', defaultFreq: 'Once Daily [OD]', defaultRoute: 'Intravenous (IV)', defaultTiming: 'After Meals', category: 'Cephalosporin Antibiotic' },
-  { name: 'Azithromycin Dihydrate (Azee)', dosage: '500mg', form: 'Tablet', defaultFreq: 'Once Daily [OD]', defaultRoute: 'Oral', defaultTiming: 'Before Meals', category: 'Macrolide Antibiotic' },
-  { name: 'Ondansetron HCl (Emeset)', dosage: '4mg', form: 'Injection', defaultFreq: 'STAT / SOS', defaultRoute: 'Intravenous (IV)', defaultTiming: 'Before Meals', category: 'Antiemetic' }
+  { name: 'Paracetamol (Acetaminophen)', brand: 'Calpol / Crocin', dosage: '500mg', form: 'Tablet', defaultFreq: 'Thrice Daily (TDS)', defaultRoute: 'Oral', defaultTiming: 'After Meals', category: 'Analgesic & Antipyretic' },
+  { name: 'Amoxicillin-Clavulanate (Augmentin)', brand: 'Augmentin 625', dosage: '625mg', form: 'Tablet', defaultFreq: 'Twice Daily (BD)', defaultRoute: 'Oral', defaultTiming: 'With Meals', category: 'Broad-Spectrum Antibiotic' },
+  { name: 'Atorvastatin Calcium (Lipitor)', brand: 'Lipitor / Atorva', dosage: '20mg', form: 'Tablet', defaultFreq: 'Once Daily (OD)', defaultRoute: 'Oral', defaultTiming: 'Bedtime (HS)', category: 'Lipid-Lowering Agent' },
+  { name: 'Aspirin (Ecosprin Gastro-resistant)', brand: 'Ecosprin 75', dosage: '75mg', form: 'Tablet', defaultFreq: 'Once Daily (OD)', defaultRoute: 'Oral', defaultTiming: 'After Meals', category: 'Antiplatelet Therapy' },
+  { name: 'Clopidogrel (Plavix)', brand: 'Plavix / Clopivas', dosage: '75mg', form: 'Tablet', defaultFreq: 'Once Daily (OD)', defaultRoute: 'Oral', defaultTiming: 'Morning (PC)', category: 'Antiplatelet Therapy' },
+  { name: 'Metoprolol Succinate (Betaloc)', brand: 'Betaloc 25', dosage: '25mg', form: 'Tablet', defaultFreq: 'Twice Daily (BD)', defaultRoute: 'Oral', defaultTiming: 'After Meals', category: 'Beta-Blocker / Antianginal' },
+  { name: 'Pantoprazole Sodium (Pan-40)', brand: 'Pan-40', dosage: '40mg', form: 'Tablet', defaultFreq: 'Once Daily (OD)', defaultRoute: 'Oral', defaultTiming: 'Before Meals', category: 'Proton Pump Inhibitor' },
+  { name: 'Ceftriaxone Sodium (Monocef)', brand: 'Monocef 1g', dosage: '1g', form: 'IV Infusion', defaultFreq: 'Every 12 Hours (q12h)', defaultRoute: 'Intravenous (IV)', defaultTiming: 'After Meals', category: 'Cephalosporin Antibiotic' },
+  { name: 'Piperacillin-Tazobactam (Zosyn)', brand: 'Pipzo 4.5g', dosage: '4.5g', form: 'IV Infusion', defaultFreq: 'Every 8 Hours (q8h)', defaultRoute: 'Intravenous (IV)', defaultTiming: 'After Meals', category: 'Broad-Spectrum Antibiotic' },
+  { name: 'Furosemide (Lasix)', brand: 'Lasix 40mg', dosage: '40mg', form: 'Injection', defaultFreq: 'STAT', defaultRoute: 'Intravenous (IV)', defaultTiming: 'Before Meals', category: 'Loop Diuretic' },
+  { name: 'Ondansetron HCl (Emeset)', brand: 'Emeset 4mg', dosage: '4mg', form: 'Injection', defaultFreq: 'SOS / PRN', defaultRoute: 'Intravenous (IV)', defaultTiming: 'Before Meals', category: 'Antiemetic' },
+  { name: 'Tramadol HCl (Ultram)', brand: 'Tramazac 50mg', dosage: '50mg', form: 'Injection', defaultFreq: 'SOS / PRN', defaultRoute: 'Intravenous (IV)', defaultTiming: 'After Meals', category: 'Opioid Analgesic' },
+  { name: 'Azithromycin Dihydrate (Azee)', brand: 'Azee 500', dosage: '500mg', form: 'Tablet', defaultFreq: 'Once Daily (OD)', defaultRoute: 'Oral', defaultTiming: 'Before Meals', category: 'Macrolide Antibiotic' }
 ];
 
 function getPatientActiveMedications(patientId, defaultRx) {
-  if (window.__patientClinicalChartState[patientId]?.medications) {
-    return window.__patientClinicalChartState[patientId].medications;
-  }
-  let meds = [];
   const store = window.hospitrackStore;
+  const user = window.hospitrackAuth?.getCurrentUser();
   const patientRxList = (store && typeof store.getPrescriptions === 'function')
     ? store.getPrescriptions(patientId)
     : [];
-  const sourceRx = defaultRx || (patientRxList && patientRxList.length > 0 ? patientRxList[0] : null);
-  if (sourceRx && sourceRx.items && sourceRx.items.length > 0) {
-    meds = sourceRx.items.map((m, idx) => ({
-      id: m.id || `MED-INIT-${idx}`,
-      name: m.name,
-      dosage: m.dosage || '',
-      form: m.form || 'Tablet',
-      frequency: m.frequency || '',
-      scheduleTag: m.scheduleTag || (m.frequency ? `${m.frequency} • ${m.timing || 'After Meals'}` : ''),
-      route: m.route || 'Oral',
-      timing: m.timing || 'After Meals',
-      duration: m.duration || '',
-      prescribedAt: sourceRx.prescribedAt ? new Date(sourceRx.prescribedAt).toLocaleDateString('en-GB') : '',
-      prescribedBy: sourceRx.doctorName || 'Attending Physician',
-      status: 'ACTIVE'
-    }));
+
+  let meds = [];
+  if (patientRxList && patientRxList.length > 0) {
+    patientRxList.forEach(rx => {
+      if (rx.items && Array.isArray(rx.items)) {
+        rx.items.forEach(m => {
+          if (m.orderType !== 'DISCHARGE' && m.status !== 'DISCONTINUED') {
+            meds.push({
+              id: m.id,
+              prescriptionId: rx.id,
+              name: m.name,
+              brandName: m.brandName || '',
+              drugCategory: m.drugCategory || '',
+              dosage: m.dosage || '',
+              form: m.dosageForm || m.form || 'Tablet',
+              frequency: m.frequency || '',
+              scheduleTag: buildClinicalScheduleTag(m),
+              route: m.route || 'Oral',
+              timing: m.mealTiming || m.timing || 'After Meals',
+              duration: m.duration || '',
+              isStat: Boolean(m.isStat),
+              isPrn: Boolean(m.isPrn),
+              prnIndication: m.prnIndication || '',
+              prnMinIntervalHours: m.prnMinIntervalHours || null,
+              prnMaxDailyDoses: m.prnMaxDailyDoses || null,
+              administrationTimes: m.administrationTimes || '',
+              ivInfusionRate: m.ivInfusionRate || '',
+              ivDiluent: m.ivDiluent || '',
+              prescribedAt: rx.prescribedAt ? new Date(rx.prescribedAt).toLocaleDateString('en-GB') : 'Today',
+              prescribedBy: rx.doctorName || user?.name || 'Attending Physician',
+              status: m.status || 'ACTIVE',
+              instructions: m.instructions || '',
+              holdReason: m.holdReason || '',
+              discontinueReason: m.discontinueReason || ''
+            });
+          }
+        });
+      }
+    });
   }
+
+  // Overlay in-memory cache if any newly added rows exist
+  if (window.__patientClinicalChartState[patientId]?.medications && window.__patientClinicalChartState[patientId].medications.length > 0) {
+    const memoryMeds = window.__patientClinicalChartState[patientId].medications;
+    memoryMeds.forEach(mm => {
+      const idx = meds.findIndex(m => (m.id && mm.id && m.id === mm.id) || (m.name && mm.name && m.name.toLowerCase() === mm.name.toLowerCase()));
+      if (idx !== -1) {
+        meds[idx] = { ...meds[idx], ...mm };
+      } else {
+        meds.unshift(mm);
+      }
+    });
+  }
+
   window.__patientClinicalChartState[patientId] = window.__patientClinicalChartState[patientId] || {};
   window.__patientClinicalChartState[patientId].medications = meds;
   return meds;
@@ -1053,28 +1142,46 @@ function renderPatientOverviewTab(data) {
               <thead>
                 <tr>
                   <th>MEDICINE &amp; DOSAGE</th>
-                  <th>SCHEDULE</th>
+                  <th>SCHEDULE &amp; FREQUENCY</th>
                   <th>ROUTE / TIMING</th>
+                  <th>STATUS</th>
                   <th>PRESCRIBED &amp; DOCTOR</th>
                   <th style="text-align: right;">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
-                ${meds.map((m, idx) => `
+                ${meds.map((m, idx) => {
+                  let statusClass = 'active';
+                  let statusLabel = 'Active';
+                  if (m.status === 'HELD') {
+                    statusClass = 'held';
+                    statusLabel = 'Held (Paused)';
+                  } else if (m.status === 'DISCONTINUED') {
+                    statusClass = 'discontinued';
+                    statusLabel = 'Discontinued';
+                  }
+
+                  return `
                   <tr>
                     <td>
                       <div style="font-weight: 800; color: #0F172A;">
                         ${escapeHtml(m.name)}
                         <span class="badge badge-subtle font-xs" style="margin-left: 6px;">${escapeHtml(m.dosage)}</span>
                       </div>
-                      <span style="font-size: 0.72rem; color: #64748B;">${escapeHtml(m.form || 'Tablet')}</span>
+                      <span style="font-size: 0.72rem; color: #64748B;">${escapeHtml(m.form || 'Tablet')}${m.brandName ? ` • ${escapeHtml(m.brandName)}` : ''}</span>
                     </td>
                     <td>
-                      <span class="med-schedule-badge">${escapeHtml(m.scheduleTag || `${m.frequency || '1-0-1'} • ${m.timing || 'After Meals'}`)}</span>
+                      <span class="med-schedule-badge">${escapeHtml(m.scheduleTag || buildClinicalScheduleTag(m))}</span>
                     </td>
                     <td>
                       <div style="font-weight: 600;">${escapeHtml(m.route || 'Oral')}</div>
                       <div style="font-size: 0.72rem; color: #64748B;">${escapeHtml(m.timing || 'After Meals')}</div>
+                      ${m.ivInfusionRate ? `<div style="font-size: 0.7rem; color: #4F46E5;">Rate: ${escapeHtml(m.ivInfusionRate)} ${m.ivDiluent ? `in ${escapeHtml(m.ivDiluent)}` : ''}</div>` : ''}
+                    </td>
+                    <td>
+                      <span class="med-status-pill ${statusClass}" title="${escapeHtml(m.discontinueReason || m.holdReason || '')}">
+                        ${statusLabel}
+                      </span>
                     </td>
                     <td>
                       <div style="font-weight: 600; color: #334155;">${escapeHtml(m.duration || '7 days')}</div>
@@ -1083,16 +1190,30 @@ function renderPatientOverviewTab(data) {
                         <span style="margin-left: 4px;">• ${escapeHtml(m.prescribedAt || 'Just now')}</span>
                       </div>
                     </td>
-                    <td style="text-align: right;">
+                    <td style="text-align: right; white-space: nowrap;">
                       <button type="button" class="med-action-btn" onclick="window.editDrugDose('${escapeHtml(patient.id)}', '${escapeHtml(m.name)}')" title="Edit Dose">
-                        Edit Dose
+                        Edit
                       </button>
-                      <button type="button" class="med-action-btn discontinue" style="margin-left: 6px;" onclick="window.discontinueDrug('${escapeHtml(patient.id)}', '${escapeHtml(m.name)}')" title="Discontinue Drug">
-                        Discontinue
-                      </button>
+                      ${m.status === 'ACTIVE' ? `
+                        <button type="button" class="med-action-btn" style="margin-left: 4px;" onclick="window.promptHoldMedication('${escapeHtml(patient.id)}', '${escapeHtml(m.id || '')}', '${escapeHtml(m.name)}')" title="Hold Order">
+                          Hold
+                        </button>
+                        <button type="button" class="med-action-btn discontinue" style="margin-left: 4px;" onclick="window.promptDiscontinueMedication('${escapeHtml(patient.id)}', '${escapeHtml(m.id || '')}', '${escapeHtml(m.name)}')" title="Discontinue Drug">
+                          Discontinue
+                        </button>
+                      ` : (m.status === 'HELD' ? `
+                        <button type="button" class="med-action-btn" style="margin-left: 4px; color: #059669; border-color: #059669;" onclick="window.resumeMedication('${escapeHtml(patient.id)}', '${escapeHtml(m.id || '')}', '${escapeHtml(m.name)}')" title="Resume Order">
+                          Resume
+                        </button>
+                        <button type="button" class="med-action-btn discontinue" style="margin-left: 4px;" onclick="window.promptDiscontinueMedication('${escapeHtml(patient.id)}', '${escapeHtml(m.id || '')}', '${escapeHtml(m.name)}')" title="Discontinue Drug">
+                          Discontinue
+                        </button>
+                      ` : `
+                        <span class="text-muted font-xs" style="margin-left: 4px;">Stopped</span>
+                      `)}
                     </td>
                   </tr>
-                `).join('')}
+                `; }).join('')}
               </tbody>
             </table>
           </div>
@@ -1164,7 +1285,7 @@ function renderPatientOverviewTab(data) {
 }
 
 // ----------------------------------------------------------------------------
-// Interactive Add Drug Slide-Over Drawer Handlers
+// Interactive Add Drug Slide-Over Drawer Handlers (Robust 10-Frequency Station)
 // ----------------------------------------------------------------------------
 window.openAddDrugModal = function (patientId, editDrugName = null) {
   let drawerOverlay = document.getElementById('addDrugSlideoverOverlay');
@@ -1175,17 +1296,26 @@ window.openAddDrugModal = function (patientId, editDrugName = null) {
     document.body.appendChild(drawerOverlay);
   }
 
-  const existingMeds = (window.__patientClinicalChartState[patientId]?.medications) || [];
+  const existingMeds = getPatientActiveMedications(patientId);
   const editMed = editDrugName ? existingMeds.find(m => m.name.toLowerCase() === editDrugName.toLowerCase()) : null;
 
   const initialDrug = editMed ? editMed.name : '';
+  const initialBrand = editMed ? (editMed.brandName || '') : '';
   const initialDosage = editMed ? editMed.dosage : '';
-  const initialForm = editMed ? (editMed.form || 'Tablet') : 'Tablet';
-  const initialFreq = editMed ? (editMed.frequency || '') : '';
+  const initialForm = editMed ? (editMed.form || editMed.dosageForm || 'Tablet') : 'Tablet';
+  const initialFreq = editMed ? (editMed.frequency || 'Once Daily (OD)') : 'Once Daily (OD)';
   const initialRoute = editMed ? (editMed.route || 'Oral') : 'Oral';
-  const initialTiming = editMed ? (editMed.timing || '') : '';
-  const initialDuration = editMed ? (parseInt(editMed.duration) || '') : '';
+  const initialTiming = editMed ? (editMed.timing || editMed.mealTiming || 'After Meals') : 'After Meals';
+  const initialDuration = editMed ? (parseInt(editMed.duration) || 7) : 7;
   const initialNotes = editMed ? (editMed.instructions || '') : '';
+  const initialStat = editMed ? Boolean(editMed.isStat) : false;
+  const initialPrn = editMed ? Boolean(editMed.isPrn) : false;
+  const initialPrnIndication = editMed ? (editMed.prnIndication || '') : '';
+  const initialPrnMinInterval = editMed ? (editMed.prnMinIntervalHours || 4) : 4;
+  const initialPrnMaxDoses = editMed ? (editMed.prnMaxDailyDoses || 4) : 4;
+  const initialStatUrgency = editMed ? (editMed.instructions || '') : '';
+  const initialIvRate = editMed ? (editMed.ivInfusionRate || '') : '';
+  const initialIvDiluent = editMed ? (editMed.ivDiluent || 'Normal Saline 0.9%') : 'Normal Saline 0.9%';
 
   drawerOverlay.innerHTML = `
     <div class="add-drug-slideover-drawer" role="dialog" aria-modal="true" aria-labelledby="addDrugModalTitle">
@@ -1194,124 +1324,209 @@ window.openAddDrugModal = function (patientId, editDrugName = null) {
           <span style="font-size: 1.25rem;">💊</span>
           <div>
             <h3 id="addDrugModalTitle" style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #FFFFFF;">
-              ${editMed ? 'Edit Medication Regimen' : 'Prescribe Inpatient Medication'}
+              ${editMed ? 'Edit Inpatient Medication Regimen' : 'Prescribe Inpatient Medication'}
             </h3>
-            <span style="font-size: 0.72rem; color: #94A3B8;">Patient MRN: ${escapeHtml(patientId)}</span>
+            <span style="font-size: 0.72rem; color: #94A3B8;">Patient MRN: ${escapeHtml(patientId)} • Clinical Safety Engine Active</span>
           </div>
         </div>
-        <button type="button" class="modal-close" style="color: #94A3B8; background: transparent; border: none; font-size: 1.2rem; cursor: pointer;" onclick="window.closeAddDrugModal()">✕</button>
+        <button type="button" class="modal-close" style="color: #94A3B8; background: transparent; border: none; font-size: 1.2rem; cursor: pointer;" onclick="window.closeAddDrugModal()" aria-label="Close">✕</button>
       </div>
 
       <form id="addDrugForm" style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow-y: auto;" onsubmit="window.handleAddDrugSubmit(event, '${escapeHtml(patientId)}', ${editMed ? `'${escapeHtml(editMed.name)}'` : 'null'})">
         <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
-          <!-- Drug Name Search with Autocomplete -->
-          <div style="position: relative;">
-            <label class="form-label" for="addDrugSearchInput" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
-              Drug Name &amp; Molecule <span style="color: #DC2626;">*</span>
-            </label>
-            <input
-              type="text"
-              id="addDrugSearchInput"
-              class="form-control"
-              placeholder="Type e.g. Paracetamol, Amoxicillin, Atorvastatin..."
-              value="${escapeHtml(initialDrug)}"
-              autocomplete="off"
-              required
-              oninput="window.filterDrugSuggestions(this.value)"
-              onfocus="window.filterDrugSuggestions(this.value)"
-            >
-            <div id="drugSuggestionsList" class="drug-suggestions-dropdown hidden"></div>
+          <!-- 1. Drug Identification (Generic + Brand) -->
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; position: relative;">
+            <div style="position: relative;">
+              <label class="form-label" for="addDrugSearchInput" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
+                Generic Drug Molecule <span style="color: #DC2626;">*</span>
+              </label>
+              <input
+                type="text"
+                id="addDrugSearchInput"
+                class="form-control"
+                placeholder="Type e.g. Paracetamol, Metoprolol, Ceftriaxone..."
+                value="${escapeHtml(initialDrug)}"
+                autocomplete="off"
+                required
+                oninput="window.filterDrugSuggestions(this.value)"
+                onfocus="window.filterDrugSuggestions(this.value)"
+              >
+              <div id="drugSuggestionsList" class="drug-suggestions-dropdown hidden"></div>
+            </div>
+            <div>
+              <label class="form-label" for="addDrugBrandName" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
+                Brand / Trade Name
+              </label>
+              <input type="text" id="addDrugBrandName" class="form-control" value="${escapeHtml(initialBrand)}" placeholder="e.g. Pan-40, Lasix">
+            </div>
           </div>
 
-          <!-- Dosage & Pharmaceutical Form -->
+          <!-- 2. Dosage & Pharmaceutical Formulation -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div>
               <label class="form-label" for="addDrugDosage" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
-                Dosage
+                Dose &amp; Strength <span style="color: #DC2626;">*</span>
               </label>
-              <input type="text" id="addDrugDosage" class="form-control" value="${escapeHtml(initialDosage)}" placeholder="e.g. 500mg" required>
+              <input type="text" id="addDrugDosage" class="form-control" value="${escapeHtml(initialDosage)}" placeholder="e.g. 500mg, 1g, 10ml, 40mg" required>
             </div>
             <div>
               <label class="form-label" for="addDrugFormType" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
-                Form
+                Pharmaceutical Form <span style="color: #DC2626;">*</span>
               </label>
-              <select id="addDrugFormType" class="form-control">
-                <option value="Tablet" ${initialForm === 'Tablet' ? 'selected' : ''}>Tablet</option>
-                <option value="Capsule" ${initialForm === 'Capsule' ? 'selected' : ''}>Capsule</option>
-                <option value="IV Infusion" ${initialForm === 'IV Infusion' ? 'selected' : ''}>IV Infusion</option>
-                <option value="Syrup" ${initialForm === 'Syrup' ? 'selected' : ''}>Syrup</option>
-                <option value="Injection" ${initialForm === 'Injection' ? 'selected' : ''}>Injection</option>
+              <select id="addDrugFormType" class="form-control" onchange="window.onDrugRouteOrFormChanged()">
+                <option value="Tablet" ${initialForm === 'Tablet' ? 'selected' : ''}>Tablet (Oral)</option>
+                <option value="Capsule" ${initialForm === 'Capsule' ? 'selected' : ''}>Capsule (Oral)</option>
+                <option value="IV Infusion" ${initialForm === 'IV Infusion' ? 'selected' : ''}>IV Infusion (Intravenous)</option>
+                <option value="Injection" ${initialForm === 'Injection' ? 'selected' : ''}>Injection (IV / IM / SC)</option>
+                <option value="Syrup" ${initialForm === 'Syrup' ? 'selected' : ''}>Syrup / Oral Liquid</option>
+                <option value="Suspension" ${initialForm === 'Suspension' ? 'selected' : ''}>Oral Suspension</option>
+                <option value="Inhaler" ${initialForm === 'Inhaler' ? 'selected' : ''}>Inhaler / Nebulizer Solution</option>
+                <option value="Topical Ointment" ${initialForm === 'Topical Ointment' ? 'selected' : ''}>Topical Cream / Ointment</option>
+                <option value="Eye Drops" ${initialForm === 'Eye Drops' ? 'selected' : ''}>Ophthalmic Drops</option>
+                <option value="Suppository" ${initialForm === 'Suppository' ? 'selected' : ''}>Suppository (Rectal)</option>
               </select>
             </div>
           </div>
 
-          <!-- Administration Frequency Quick Selector -->
+          <!-- 3. Medical Frequency Interactive Selector (All 10 Real-World Hospital Options) -->
           <div>
-            <label class="form-label" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
-              Frequency Selector
-            </label>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
-              <button type="button" class="btn-freq-pill ${initialFreq.includes('OD') ? 'active' : ''}" onclick="window.setDrugFrequency(this, 'Once Daily [OD]')">Once Daily [OD]</button>
-              <button type="button" class="btn-freq-pill ${initialFreq.includes('BD') ? 'active' : ''}" onclick="window.setDrugFrequency(this, 'Twice Daily [BD]')">Twice Daily [BD]</button>
-              <button type="button" class="btn-freq-pill ${initialFreq.includes('TDS') ? 'active' : ''}" onclick="window.setDrugFrequency(this, 'Thrice Daily [TDS]')">Thrice Daily [TDS]</button>
-              <button type="button" class="btn-freq-pill ${initialFreq.includes('STAT') || initialFreq.includes('SOS') ? 'active' : ''}" onclick="window.setDrugFrequency(this, 'STAT / SOS')">STAT / SOS</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin: 0;">
+                Administration Frequency Selector <span style="color: #DC2626;">*</span>
+              </label>
+              <span style="font-size: 0.7rem; color: #64748B;">Click option or use Tab + Space</span>
+            </div>
+            <div class="freq-selector-container" role="radiogroup" aria-label="Medication Administration Frequency">
+              <div class="freq-selector-grid" id="freqButtonsGrid">
+                ${CLINICAL_FREQUENCIES.map(f => {
+                  const isActive = (initialFreq.toLowerCase().includes(f.id.toLowerCase()) || initialFreq.toLowerCase() === f.code.toLowerCase());
+                  return `
+                    <button
+                      type="button"
+                      class="btn-freq-pill ${isActive ? 'active' : ''}"
+                      role="radio"
+                      aria-checked="${isActive ? 'true' : 'false'}"
+                      tabindex="0"
+                      data-freq="${escapeHtml(f.code)}"
+                      data-category="${f.type}"
+                      onclick="window.setDrugFrequency(this, '${escapeHtml(f.code)}')"
+                      onkeydown="if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); window.setDrugFrequency(this, '${escapeHtml(f.code)}'); }"
+                    >
+                      <div class="freq-pill-header">
+                        <span class="freq-pill-title">${escapeHtml(f.label)}</span>
+                        <span class="freq-pill-indicator">✓</span>
+                      </div>
+                      <span class="freq-pill-sub">${escapeHtml(f.sub)}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
             </div>
             <input type="hidden" id="addDrugFrequency" value="${escapeHtml(initialFreq)}">
           </div>
 
-          <!-- Route & Meal Timing -->
+          <!-- 4. Dynamic Conditional Form Section (STAT, SOS/PRN, Interval, or Scheduled) -->
+          <div id="freqConditionalContainer">
+            <!-- Dynamically populated by window.onDrugFrequencyChanged -->
+          </div>
+
+          <!-- 5. Route of Administration -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div>
-              <label class="form-label" for="addDrugRoute" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">Route</label>
-              <select id="addDrugRoute" class="form-control">
-                <option value="Oral" ${initialRoute === 'Oral' ? 'selected' : ''}>Oral</option>
+              <label class="form-label" for="addDrugRoute" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
+                Route of Administration <span style="color: #DC2626;">*</span>
+              </label>
+              <select id="addDrugRoute" class="form-control" onchange="window.onDrugRouteOrFormChanged()">
+                <option value="Oral" ${initialRoute === 'Oral' ? 'selected' : ''}>Oral (PO)</option>
                 <option value="Intravenous (IV)" ${initialRoute.includes('IV') ? 'selected' : ''}>Intravenous (IV)</option>
+                <option value="Intramuscular (IM)" ${initialRoute.includes('IM') ? 'selected' : ''}>Intramuscular (IM)</option>
                 <option value="Subcutaneous (SC)" ${initialRoute.includes('SC') ? 'selected' : ''}>Subcutaneous (SC)</option>
-                <option value="Inhalation" ${initialRoute === 'Inhalation' ? 'selected' : ''}>Inhalation</option>
+                <option value="Sublingual" ${initialRoute === 'Sublingual' ? 'selected' : ''}>Sublingual (SL)</option>
+                <option value="Inhalation" ${initialRoute === 'Inhalation' ? 'selected' : ''}>Inhalation (INH)</option>
+                <option value="Topical" ${initialRoute === 'Topical' ? 'selected' : ''}>Topical / Transdermal</option>
+                <option value="Ophthalmic" ${initialRoute === 'Ophthalmic' ? 'selected' : ''}>Ophthalmic (Eye)</option>
+                <option value="Rectal" ${initialRoute === 'Rectal' ? 'selected' : ''}>Rectal (PR)</option>
               </select>
             </div>
-            <div>
-              <label class="form-label" for="addDrugTiming" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">Meal Timing</label>
+            <div id="mealTimingCol">
+              <label class="form-label" for="addDrugTiming" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
+                Meal Relationship
+              </label>
               <select id="addDrugTiming" class="form-control">
-                <option value="After Meals" ${initialTiming === 'After Meals' ? 'selected' : ''}>After Meals</option>
-                <option value="Before Meals" ${initialTiming === 'Before Meals' ? 'selected' : ''}>Before Meals</option>
-                <option value="With Meals" ${initialTiming === 'With Meals' ? 'selected' : ''}>With Meals</option>
+                <option value="After Meals" ${initialTiming === 'After Meals' ? 'selected' : ''}>After Meals (PC)</option>
+                <option value="Before Meals" ${initialTiming === 'Before Meals' ? 'selected' : ''}>Before Meals (AC)</option>
+                <option value="With Meals" ${initialTiming === 'With Meals' ? 'selected' : ''}>With Meals (CC)</option>
+                <option value="Empty Stomach" ${initialTiming === 'Empty Stomach' ? 'selected' : ''}>Empty Stomach (1h before / 2h after)</option>
                 <option value="Bedtime (HS)" ${initialTiming.includes('Bedtime') ? 'selected' : ''}>Bedtime (HS)</option>
               </select>
             </div>
           </div>
 
-          <!-- Duration Days Input -->
-          <div>
-            <label class="form-label" for="addDrugDuration" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
-              Duration (Days)
-            </label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <button type="button" class="btn btn-secondary btn-sm" onclick="const el = document.getElementById('addDrugDuration'); el.value = Math.max(1, parseInt(el.value || 1) - 1);">-</button>
-              <input type="number" id="addDrugDuration" class="form-control" style="width: 80px; text-align: center; font-weight: 800;" value="${initialDuration}" placeholder="5" min="1" max="90">
-              <button type="button" class="btn btn-secondary btn-sm" onclick="const el = document.getElementById('addDrugDuration'); el.value = parseInt(el.value || 1) + 1;">+</button>
-              <span style="font-size: 0.78rem; color: #64748B;">days of inpatient treatment</span>
+          <!-- 6. Route-Conditional IV Infusion Parameters -->
+          <div id="routeConditionalContainer" class="route-conditional-card ${initialRoute.includes('IV') || initialForm === 'IV Infusion' ? '' : 'hidden'}" style="${initialRoute.includes('IV') || initialForm === 'IV Infusion' ? '' : 'display: none;'}">
+            <div style="font-size: 0.75rem; font-weight: 800; color: #4338CA; text-transform: uppercase; margin-bottom: 8px;">
+              💉 Intravenous (IV) Infusion Parameters
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="form-label font-xs" for="addDrugIvRate">Infusion Rate</label>
+                <input type="text" id="addDrugIvRate" class="form-control" placeholder="e.g. 100 mL/hr, 50 drops/min" value="${escapeHtml(initialIvRate)}">
+              </div>
+              <div>
+                <label class="form-label font-xs" for="addDrugIvDiluent">Diluent / Carrier Fluid</label>
+                <select id="addDrugIvDiluent" class="form-control">
+                  <option value="Normal Saline 0.9%" ${initialIvDiluent.includes('Saline') ? 'selected' : ''}>Normal Saline 0.9% (NS)</option>
+                  <option value="5% Dextrose (D5W)" ${initialIvDiluent.includes('Dextrose') || initialIvDiluent.includes('D5W') ? 'selected' : ''}>5% Dextrose (D5W)</option>
+                  <option value="Ringer's Lactate (RL)" ${initialIvDiluent.includes('Ringer') ? 'selected' : ''}>Ringer's Lactate (RL)</option>
+                  <option value="Sterile Water for Injection" ${initialIvDiluent.includes('Water') ? 'selected' : ''}>Sterile Water</option>
+                  <option value="Direct IV Push (Undiluted)" ${initialIvDiluent.includes('Push') ? 'selected' : ''}>Direct IV Push (Undiluted)</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <!-- Special Instructions -->
+          <!-- 7. Inpatient Treatment Duration Days (Hidden if STAT) -->
+          <div id="durationContainer">
+            <label class="form-label" for="addDrugDuration" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
+              Treatment Duration (Days) <span style="color: #DC2626;">*</span>
+            </label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="const el = document.getElementById('addDrugDuration'); el.value = Math.max(1, parseInt(el.value || 1) - 1);">-</button>
+              <input type="number" id="addDrugDuration" class="form-control" style="width: 80px; text-align: center; font-weight: 800;" value="${initialDuration}" min="1" max="90">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="const el = document.getElementById('addDrugDuration'); el.value = parseInt(el.value || 1) + 1;">+</button>
+              <span style="font-size: 0.78rem; color: #64748B;">days of inpatient active administration</span>
+            </div>
+          </div>
+
+          <!-- 8. Special Clinical Instructions -->
           <div>
             <label class="form-label" for="addDrugInstructions" style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 6px; display: block;">
-              Attending Notes / Instructions
+              Attending Physician Directives / Nursing Notes
             </label>
-            <textarea id="addDrugInstructions" class="form-control" rows="2" placeholder="e.g. Monitor LFTs, take with water, check morning blood pressure...">${escapeHtml(initialNotes)}</textarea>
+            <textarea id="addDrugInstructions" class="form-control" rows="2" placeholder="e.g. Monitor blood pressure before dose; hold if systolic BP < 90 mmHg; report skin rash...">${escapeHtml(initialNotes)}</textarea>
           </div>
+
+          <div id="addDrugAlert" class="alert-banner hidden"></div>
         </div>
 
         <div style="padding: 16px 20px; background: #F8FAFC; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 10px;">
           <button type="button" class="btn btn-secondary" onclick="window.closeAddDrugModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">${editMed ? 'Update Dose' : 'Prescribe &amp; Sign Order'}</button>
+          <button type="submit" id="addDrugSubmitBtn" class="btn btn-primary">
+            <span id="addDrugBtnSpinner" class="btn-spinner hidden"></span>
+            <span id="addDrugBtnText">${editMed ? 'Update Medication Regimen' : '✍️ Prescribe &amp; Sign Order'}</span>
+          </button>
         </div>
       </form>
     </div>
   `;
 
   drawerOverlay.classList.add('open');
+
+  // Trigger initial frequency and route conditional updates
+  setTimeout(() => {
+    window.onDrugFrequencyChanged(initialFreq);
+    window.onDrugRouteOrFormChanged();
+  }, 30);
 };
 
 window.closeAddDrugModal = function () {
@@ -1320,20 +1535,181 @@ window.closeAddDrugModal = function () {
 };
 
 window.setDrugFrequency = function (btn, freq) {
-  const parent = btn.parentElement;
-  if (parent) {
-    parent.querySelectorAll('.btn-freq-pill').forEach(b => b.classList.remove('active'));
+  const container = document.getElementById('freqButtonsGrid');
+  if (container) {
+    container.querySelectorAll('.btn-freq-pill').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-checked', 'false');
+    });
   }
   btn.classList.add('active');
+  btn.setAttribute('aria-checked', 'true');
+
   const hidden = document.getElementById('addDrugFrequency');
   if (hidden) hidden.value = freq;
+
+  window.onDrugFrequencyChanged(freq);
+};
+
+window.onDrugFrequencyChanged = function (freq) {
+  const container = document.getElementById('freqConditionalContainer');
+  const durationContainer = document.getElementById('durationContainer');
+  const mealTimingCol = document.getElementById('mealTimingCol');
+  if (!container) return;
+
+  const fUpper = (freq || '').toUpperCase();
+  const freqObj = CLINICAL_FREQUENCIES.find(f => f.code.toUpperCase() === fUpper || f.id.toUpperCase() === fUpper) || CLINICAL_FREQUENCIES[0];
+
+  if (freqObj.type === 'stat') {
+    // STAT: Single immediate dose, no recurring duration
+    if (durationContainer) durationContainer.style.display = 'none';
+    if (mealTimingCol) mealTimingCol.style.display = 'none';
+
+    container.innerHTML = `
+      <div class="freq-conditional-card stat-urgency">
+        <div class="freq-conditional-title">
+          <span>⚡</span> STAT ORDER DIRECTIVE (IMMEDIATE ADMINISTRATION)
+        </div>
+        <p class="font-xs text-secondary" style="margin: 0 0 8px 0;">
+          STAT orders are single, non-recurring administrations requiring immediate nursing delivery.
+        </p>
+        <div class="form-group mb-0">
+          <label class="form-label font-xs font-semibold" for="addDrugStatUrgency">
+            Clinical Urgency / Reason for Immediate Dose <span class="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            id="addDrugStatUrgency"
+            class="form-control"
+            placeholder="e.g. Acute hypertensive crisis, severe pulmonary edema, immediate pre-op loading"
+            required
+          >
+        </div>
+      </div>
+    `;
+  } else if (freqObj.type === 'prn') {
+    // SOS / PRN: As-needed order with condition, min interval, and max 24h doses
+    if (durationContainer) durationContainer.style.display = 'block';
+    if (mealTimingCol) mealTimingCol.style.display = 'block';
+
+    container.innerHTML = `
+      <div class="freq-conditional-card prn-directives">
+        <div class="freq-conditional-title">
+          <span>🔔</span> SOS / PRN DIRECTIVES &amp; CLINICAL LIMITS
+        </div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px;">
+          <div>
+            <label class="form-label font-xs font-semibold" for="addDrugPrnIndication">
+              Mandatory Trigger Condition / Indication <span class="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              id="addDrugPrnIndication"
+              class="form-control"
+              placeholder="e.g. Temperature > 101°F, Pain score >= 6"
+              required
+            >
+          </div>
+          <div>
+            <label class="form-label font-xs font-semibold" for="addDrugPrnMinInterval">
+              Min Interval (Hours) <span class="text-danger">*</span>
+            </label>
+            <input
+              type="number"
+              id="addDrugPrnMinInterval"
+              class="form-control"
+              value="4"
+              min="2"
+              max="24"
+              required
+            >
+          </div>
+          <div>
+            <label class="form-label font-xs font-semibold" for="addDrugPrnMaxDoses">
+              Max Doses / 24h <span class="text-danger">*</span>
+            </label>
+            <input
+              type="number"
+              id="addDrugPrnMaxDoses"
+              class="form-control"
+              value="4"
+              min="1"
+              max="8"
+              required
+            >
+          </div>
+        </div>
+        <div class="text-xs text-secondary mt-6" style="color: #92400E; font-size: 0.72rem;">
+          ⚠️ <strong>PRN Safety Gate:</strong> Doses must strictly observe minimum hours and cannot exceed 24h ceiling.
+        </div>
+      </div>
+    `;
+  } else if (freqObj.type === 'interval') {
+    // Interval-based (q4h, q6h, q8h, q12h)
+    if (durationContainer) durationContainer.style.display = 'block';
+    if (mealTimingCol) mealTimingCol.style.display = 'block';
+
+    container.innerHTML = `
+      <div class="freq-conditional-card interval-schedule">
+        <div class="freq-conditional-title">
+          <span>⏱️</span> FIXED-INTERVAL INPATIENT SCHEDULE (${escapeHtml(freqObj.label)})
+        </div>
+        <div class="d-flex-between">
+          <span style="font-size: 0.76rem; color: #0F766E; font-weight: 600;">
+            Proposed Administration Schedule: <strong>${escapeHtml(freqObj.times)}</strong>
+          </span>
+          <span class="badge badge-subtle font-xs">${escapeHtml(freqObj.sub)}</span>
+        </div>
+        <input type="hidden" id="addDrugAdministrationTimes" value="${escapeHtml(freqObj.times)}">
+      </div>
+    `;
+  } else {
+    // Standard Scheduled (OD, BD, TDS, QID)
+    if (durationContainer) durationContainer.style.display = 'block';
+    if (mealTimingCol) mealTimingCol.style.display = 'block';
+
+    container.innerHTML = `
+      <div class="freq-conditional-card daily-schedule">
+        <div class="freq-conditional-title">
+          <span>🗓️</span> STANDARD WARD ADMINISTRATION TIMES
+        </div>
+        <div class="d-flex-between">
+          <span style="font-size: 0.76rem; color: #1E40AF; font-weight: 600;">
+            Standard Dosing Schedule: <strong>${escapeHtml(freqObj.times)}</strong>
+          </span>
+          <span class="badge badge-subtle font-xs">${escapeHtml(freqObj.sub)}</span>
+        </div>
+        <input type="hidden" id="addDrugAdministrationTimes" value="${escapeHtml(freqObj.times)}">
+      </div>
+    `;
+  }
+};
+
+window.onDrugRouteOrFormChanged = function () {
+  const route = document.getElementById('addDrugRoute')?.value || 'Oral';
+  const form = document.getElementById('addDrugFormType')?.value || 'Tablet';
+  const ivContainer = document.getElementById('routeConditionalContainer');
+  if (!ivContainer) return;
+
+  if (route.includes('IV') || form === 'IV Infusion') {
+    ivContainer.classList.remove('hidden');
+    ivContainer.style.display = 'block';
+  } else {
+    ivContainer.classList.add('hidden');
+    ivContainer.style.display = 'none';
+  }
 };
 
 window.filterDrugSuggestions = function (query) {
   const listEl = document.getElementById('drugSuggestionsList');
   if (!listEl) return;
   const q = (query || '').toLowerCase().trim();
-  const matched = COMMON_DRUG_CATALOG.filter(d => !q || d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q));
+  const matched = COMMON_DRUG_CATALOG.filter(d =>
+    !q ||
+    d.name.toLowerCase().includes(q) ||
+    (d.brand && d.brand.toLowerCase().includes(q)) ||
+    (d.category && d.category.toLowerCase().includes(q))
+  );
 
   if (matched.length === 0) {
     listEl.classList.add('hidden');
@@ -1341,16 +1717,22 @@ window.filterDrugSuggestions = function (query) {
   }
 
   listEl.innerHTML = matched.map(d => `
-    <div class="drug-suggestion-item" onclick="window.selectDrugSuggestion('${escapeHtml(d.name)}', '${escapeHtml(d.dosage)}', '${escapeHtml(d.form)}', '${escapeHtml(d.defaultFreq)}', '${escapeHtml(d.defaultRoute)}', '${escapeHtml(d.defaultTiming)}')">
-      <div style="font-weight: 800; color: #0F172A;">${escapeHtml(d.name)}</div>
-      <div style="font-size: 0.7rem; color: #64748B;">${escapeHtml(d.dosage)} • ${escapeHtml(d.form)} • ${escapeHtml(d.category)}</div>
+    <div class="drug-suggestion-item" onclick="window.selectDrugSuggestion('${escapeHtml(d.name)}', '${escapeHtml(d.brand || '')}', '${escapeHtml(d.dosage)}', '${escapeHtml(d.form)}', '${escapeHtml(d.defaultFreq)}', '${escapeHtml(d.defaultRoute)}', '${escapeHtml(d.defaultTiming)}', '${escapeHtml(d.category || '')}')">
+      <div style="font-weight: 800; color: #0F172A; display: flex; justify-content: space-between;">
+        <span>${escapeHtml(d.name)}</span>
+        <span class="badge badge-subtle font-xs">${escapeHtml(d.defaultFreq)}</span>
+      </div>
+      <div style="font-size: 0.72rem; color: #64748B;">
+        ${d.brand ? `<strong>${escapeHtml(d.brand)}</strong> • ` : ''}${escapeHtml(d.dosage)} • ${escapeHtml(d.form)} • ${escapeHtml(d.category || '')}
+      </div>
     </div>
   `).join('');
   listEl.classList.remove('hidden');
 };
 
-window.selectDrugSuggestion = function (name, dosage, form, freq, route, timing) {
+window.selectDrugSuggestion = function (name, brand, dosage, form, freq, route, timing, category) {
   const nameInput = document.getElementById('addDrugSearchInput');
+  const brandInput = document.getElementById('addDrugBrandName');
   const doseInput = document.getElementById('addDrugDosage');
   const formSelect = document.getElementById('addDrugFormType');
   const freqHidden = document.getElementById('addDrugFrequency');
@@ -1358,112 +1740,298 @@ window.selectDrugSuggestion = function (name, dosage, form, freq, route, timing)
   const timingSelect = document.getElementById('addDrugTiming');
 
   if (nameInput) nameInput.value = name;
+  if (brandInput) brandInput.value = brand;
   if (doseInput) doseInput.value = dosage;
   if (formSelect) formSelect.value = form;
   if (freqHidden) freqHidden.value = freq;
   if (routeSelect) routeSelect.value = route;
   if (timingSelect) timingSelect.value = timing;
 
-  // Update frequency pill active state
-  document.querySelectorAll('.btn-freq-pill').forEach(b => {
-    if (b.textContent.trim().toLowerCase().includes(freq.toLowerCase().split(' ')[0])) {
-      b.classList.add('active');
-    } else {
-      b.classList.remove('active');
+  // Update frequency pill active state across all 10 options
+  const grid = document.getElementById('freqButtonsGrid');
+  if (grid) {
+    let matchedBtn = null;
+    grid.querySelectorAll('.btn-freq-pill').forEach(b => {
+      const bFreq = b.getAttribute('data-freq') || '';
+      if (bFreq.toLowerCase() === freq.toLowerCase() || (freq.includes('(') && bFreq.includes(freq.split('(')[0].trim()))) {
+        matchedBtn = b;
+        b.classList.add('active');
+        b.setAttribute('aria-checked', 'true');
+      } else {
+        b.classList.remove('active');
+        b.setAttribute('aria-checked', 'false');
+      }
+    });
+    if (matchedBtn) {
+      window.onDrugFrequencyChanged(freq);
     }
-  });
+  }
+
+  window.onDrugRouteOrFormChanged();
 
   const listEl = document.getElementById('drugSuggestionsList');
   if (listEl) listEl.classList.add('hidden');
 };
 
-window.handleAddDrugSubmit = function (e, patientId, editingName = null) {
+window.handleAddDrugSubmit = async function (e, patientId, editingName = null) {
   if (e && e.preventDefault) e.preventDefault();
 
+  const alertEl = document.getElementById('addDrugAlert');
+  const submitBtn = document.getElementById('addDrugSubmitBtn');
+  const spinner = document.getElementById('addDrugBtnSpinner');
+  const btnText = document.getElementById('addDrugBtnText');
+
   const name = document.getElementById('addDrugSearchInput')?.value?.trim();
+  const brand = document.getElementById('addDrugBrandName')?.value?.trim() || '';
   const dosage = document.getElementById('addDrugDosage')?.value?.trim();
   const form = document.getElementById('addDrugFormType')?.value || 'Tablet';
-  const freq = document.getElementById('addDrugFrequency')?.value || 'Twice Daily [BD]';
+  const freq = document.getElementById('addDrugFrequency')?.value || 'Once Daily (OD)';
   const route = document.getElementById('addDrugRoute')?.value || 'Oral';
   const timing = document.getElementById('addDrugTiming')?.value || 'After Meals';
-  const durationDays = document.getElementById('addDrugDuration')?.value?.trim();
+  const notes = document.getElementById('addDrugInstructions')?.value?.trim() || '';
 
+  const isStat = freq.toUpperCase().includes('STAT');
+  const isPrn = freq.toUpperCase().includes('SOS') || freq.toUpperCase().includes('PRN');
+
+  const statUrgency = document.getElementById('addDrugStatUrgency')?.value?.trim() || '';
+  const prnIndication = document.getElementById('addDrugPrnIndication')?.value?.trim() || '';
+  const prnMinInterval = parseInt(document.getElementById('addDrugPrnMinInterval')?.value || '4');
+  const prnMaxDoses = parseInt(document.getElementById('addDrugPrnMaxDoses')?.value || '4');
+  const administrationTimes = document.getElementById('addDrugAdministrationTimes')?.value?.trim() || '';
+  const ivRate = document.getElementById('addDrugIvRate')?.value?.trim() || '';
+  const ivDiluent = document.getElementById('addDrugIvDiluent')?.value?.trim() || '';
+
+  let durationDays = document.getElementById('addDrugDuration')?.value?.trim() || '7';
+  if (isStat) {
+    durationDays = '1';
+  }
+
+  // Strict clinical validations
   if (!name) {
-    alert('Please enter or select a valid drug name.');
+    showAlert('Please specify a valid generic drug molecule.', alertEl);
     return;
   }
   if (!dosage) {
-    alert('Please specify the medication dosage (e.g. 500mg, 10ml, etc.).');
+    showAlert('Please specify the medication dose and strength (e.g. 500mg, 1g, 40mg).', alertEl);
     return;
   }
-  if (!durationDays || parseInt(durationDays) <= 0) {
-    alert('Please specify a valid duration in days (minimum 1 day).');
+  if (isStat && !statUrgency) {
+    showAlert('STAT orders require an explicit clinical urgency / indication.', alertEl);
     return;
   }
-  const notes = document.getElementById('addDrugInstructions')?.value?.trim() || '';
-
-  if (!name) {
-    alert('Please enter or select a valid drug name.');
+  if (isPrn && !prnIndication) {
+    showAlert('SOS / PRN orders require a mandatory trigger condition (e.g. For fever > 101°F).', alertEl);
+    return;
+  }
+  if (!isStat && (!durationDays || parseInt(durationDays) <= 0)) {
+    showAlert('Please specify a valid duration in days (minimum 1 day).', alertEl);
     return;
   }
 
-  let sched = '1 - 0 - 1 • ' + timing;
-  if (freq.includes('OD')) sched = '1 - 0 - 0 • ' + timing;
-  else if (freq.includes('BD')) sched = '1 - 0 - 1 • ' + timing;
-  else if (freq.includes('TDS')) sched = '1 - 1 - 1 • ' + timing;
-  else if (freq.includes('STAT') || freq.includes('SOS')) sched = 'SOS as needed • ' + timing;
+  const schedTag = buildClinicalScheduleTag({
+    frequency: freq,
+    timing,
+    isStat,
+    isPrn,
+    prnIndication,
+    prnMinIntervalHours: prnMinInterval,
+    administrationTimes
+  });
 
-  const currentMeds = getPatientActiveMedications(patientId);
+  const fullInstructions = isStat
+    ? `STAT: ${statUrgency}${notes ? ` | Notes: ${notes}` : ''}`
+    : (isPrn
+      ? `PRN Directive: ${prnIndication} (Min interval: ${prnMinInterval}h, Max ${prnMaxDoses} doses/24h)${notes ? ` | Notes: ${notes}` : ''}`
+      : (notes || `Take ${timing}`));
 
-  if (editingName) {
-    const idx = currentMeds.findIndex(m => m.name.toLowerCase() === editingName.toLowerCase());
-    if (idx !== -1) {
-      currentMeds[idx] = {
-        ...currentMeds[idx],
-        name,
-        dosage,
-        form,
-        frequency: freq,
-        route,
-        timing,
-        duration: `${durationDays} days`,
-        scheduleTag: sched,
-        instructions: notes
-      };
-    }
-    window.showToast?.(`✓ Updated dosage regimen for ${name}.`, 'success');
-  } else {
-    const newMed = {
-      id: `MED-${Date.now().toString().slice(-4)}`,
+  try {
+    if (submitBtn) submitBtn.disabled = true;
+    if (spinner) spinner.classList.remove('hidden');
+    if (btnText) btnText.textContent = 'Signing Order...';
+    if (alertEl) alertEl.classList.add('hidden');
+
+    const medicineItem = {
       name,
+      brandName: brand,
+      dosage,
+      dosageForm: form,
+      frequency: freq,
+      route,
+      mealTiming: timing,
+      duration: isStat ? 'Single Dose' : `${durationDays} days`,
+      instructions: fullInstructions,
+      isStat,
+      isPrn,
+      prnIndication: isPrn ? prnIndication : null,
+      prnMinIntervalHours: isPrn ? prnMinInterval : null,
+      prnMaxDailyDoses: isPrn ? prnMaxDoses : null,
+      administrationTimes: administrationTimes || null,
+      orderType: 'INPATIENT',
+      status: 'ACTIVE',
+      ivInfusionRate: route.includes('IV') || form === 'IV Infusion' ? ivRate : null,
+      ivDiluent: route.includes('IV') || form === 'IV Infusion' ? ivDiluent : null
+    };
+
+    const user = window.hospitrackAuth?.getCurrentUser();
+    const prescriptionPayload = {
+      patientId,
+      orderType: 'INPATIENT',
+      doctorId: user?.doctorId || user?.id,
+      hospitalId: user?.hospitalId || 'HOSP-101',
+      instructions: fullInstructions,
+      medicines: [medicineItem]
+    };
+
+    let savedItem = null;
+    if (window.hospitrackStore && typeof window.hospitrackStore.createPrescription === 'function') {
+      const createdRx = await window.hospitrackStore.createPrescription(prescriptionPayload);
+      if (createdRx && createdRx.items && createdRx.items.length > 0) {
+        savedItem = createdRx.items[0];
+      }
+    }
+
+    // Synchronize into local chart state for immediate UI feedback
+    const activeMeds = getPatientActiveMedications(patientId);
+    const newMedObj = {
+      id: savedItem?.id || `MED-${Date.now().toString().slice(-4)}`,
+      name,
+      brandName: brand,
       dosage,
       form,
       frequency: freq,
-      scheduleTag: sched,
+      scheduleTag: schedTag,
       route,
       timing,
-      duration: `${durationDays} days`,
+      duration: isStat ? 'Single Dose' : `${durationDays} days`,
+      isStat,
+      isPrn,
+      prnIndication,
+      prnMinIntervalHours: prnMinInterval,
+      prnMaxDailyDoses: prnMaxDoses,
+      administrationTimes,
+      ivInfusionRate: ivRate,
+      ivDiluent,
       prescribedAt: 'Just now',
-      prescribedBy: 'Dr. Arjun Verma',
-      instructions: notes,
+      prescribedBy: user?.name || 'Attending Physician',
+      instructions: fullInstructions,
       status: 'ACTIVE'
     };
-    currentMeds.unshift(newMed);
-    window.showToast?.(`✓ ${name} ${dosage} added to active inpatient regimens.`, 'success');
+
+    if (editingName) {
+      const idx = activeMeds.findIndex(m => m.name.toLowerCase() === editingName.toLowerCase());
+      if (idx !== -1) {
+        activeMeds[idx] = newMedObj;
+      } else {
+        activeMeds.unshift(newMedObj);
+      }
+      window.showToast?.(`✓ Updated medication regimen: ${name} ${dosage}.`, 'success');
+    } else {
+      activeMeds.unshift(newMedObj);
+      window.showToast?.(`✓ ${name} ${dosage} (${freq}) prescribed and signed into inpatient record.`, 'success');
+    }
+
+    window.closeAddDrugModal();
+    if (typeof refreshPatientWorkspaceContent === 'function') {
+      refreshPatientWorkspaceContent(patientId);
+    }
+  } catch (err) {
+    showAlert(err.message || 'Failed to sign pharmacotherapy order.', alertEl);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+    if (spinner) spinner.classList.add('hidden');
+    if (btnText) btnText.textContent = editingName ? 'Update Medication Regimen' : '✍️ Prescribe & Sign Order';
+  }
+};
+
+function showAlert(msg, el) {
+  if (el) {
+    el.textContent = msg;
+    el.className = 'alert-banner error mb-12';
+    el.classList.remove('hidden');
+  } else {
+    alert(msg);
+  }
+}
+
+window.promptHoldMedication = async function (patientId, itemId, drugName) {
+  const reason = prompt(`Enter clinical justification for placing HOLD order on ${drugName}:`, 'Therapeutic pause pending clinical review');
+  if (reason === null) return;
+  if (!reason.trim()) {
+    alert('A documented clinical reason is required to hold an active medication.');
+    return;
   }
 
-  window.closeAddDrugModal();
-  refreshPatientWorkspaceContent(patientId);
+  try {
+    if (itemId && window.hospitrackStore && typeof window.hospitrackStore.updateMedicationItemStatus === 'function') {
+      await window.hospitrackStore.updateMedicationItemStatus(itemId, 'HELD', reason.trim());
+    }
+    const currentMeds = getPatientActiveMedications(patientId);
+    const m = currentMeds.find(x => (itemId && x.id == itemId) || x.name.toLowerCase() === drugName.toLowerCase());
+    if (m) {
+      m.status = 'HELD';
+      m.holdReason = reason.trim();
+    }
+    window.showToast?.(`⏸ Medication order placed on HOLD: ${drugName}.`, 'warning');
+    if (typeof refreshPatientWorkspaceContent === 'function') {
+      refreshPatientWorkspaceContent(patientId);
+    }
+  } catch (err) {
+    alert('Failed to hold medication: ' + err.message);
+  }
+};
+
+window.resumeMedication = async function (patientId, itemId, drugName) {
+  try {
+    if (itemId && window.hospitrackStore && typeof window.hospitrackStore.updateMedicationItemStatus === 'function') {
+      await window.hospitrackStore.updateMedicationItemStatus(itemId, 'ACTIVE', null);
+    }
+    const currentMeds = getPatientActiveMedications(patientId);
+    const m = currentMeds.find(x => (itemId && x.id == itemId) || x.name.toLowerCase() === drugName.toLowerCase());
+    if (m) {
+      m.status = 'ACTIVE';
+      m.holdReason = null;
+    }
+    window.showToast?.(`▶ Medication order RESUMED: ${drugName}.`, 'success');
+    if (typeof refreshPatientWorkspaceContent === 'function') {
+      refreshPatientWorkspaceContent(patientId);
+    }
+  } catch (err) {
+    alert('Failed to resume medication: ' + err.message);
+  }
+};
+
+window.promptDiscontinueMedication = async function (patientId, itemId, drugName) {
+  const reason = prompt(
+    `Enter mandatory clinical reason for DISCONTINUING ${drugName}:\n` +
+    `Examples: Therapeutic goal achieved, Adverse reaction / allergy, Switched to oral therapy, Ineffective response`
+  );
+  if (reason === null) return;
+  if (!reason.trim()) {
+    alert('Mandatory clinical reason is required to discontinue an active medication order.');
+    return;
+  }
+
+  try {
+    if (itemId && window.hospitrackStore && typeof window.hospitrackStore.updateMedicationItemStatus === 'function') {
+      await window.hospitrackStore.updateMedicationItemStatus(itemId, 'DISCONTINUED', reason.trim());
+    }
+    const currentMeds = getPatientActiveMedications(patientId);
+    const idx = currentMeds.findIndex(x => (itemId && x.id == itemId) || x.name.toLowerCase() === drugName.toLowerCase());
+    if (idx !== -1) {
+      currentMeds[idx].status = 'DISCONTINUED';
+      currentMeds[idx].discontinueReason = reason.trim();
+    }
+    window.showToast?.(`⏹ Discontinued medication order: ${drugName}.`, 'info');
+    if (typeof refreshPatientWorkspaceContent === 'function') {
+      refreshPatientWorkspaceContent(patientId);
+    }
+  } catch (err) {
+    alert('Failed to discontinue medication: ' + err.message);
+  }
 };
 
 window.discontinueDrug = function (patientId, drugName) {
-  const currentMeds = getPatientActiveMedications(patientId);
-  const idx = currentMeds.findIndex(m => m.name.toLowerCase() === drugName.toLowerCase());
-  if (idx !== -1) {
-    currentMeds.splice(idx, 1);
-    window.showToast?.(`Discontinued medication order: ${drugName}.`, 'info');
-    refreshPatientWorkspaceContent(patientId);
-  }
+  window.promptDiscontinueMedication(patientId, null, drugName);
 };
 
 window.editDrugDose = function (patientId, drugName) {
@@ -4620,6 +5188,11 @@ function renderDoctorDischargeRequestsView(data) {
   `;
 }
 
+window._dischargeReconciliationState = {
+  inpatientMeds: [],
+  newDischargeMeds: []
+};
+
 window.openRequestDischargeModal = function (defaultPatientId = null) {
   const modalContainer = document.getElementById('globalModalContainer');
   if (!modalContainer) return;
@@ -4629,43 +5202,326 @@ window.openRequestDischargeModal = function (defaultPatientId = null) {
   const hospitalId = user?.hospitalId || user?.hospital?.id || (user?.role === 'HOSPITAL' || user?.role === 'HOSPITAL_ADMIN' ? user.id : 'HOSP-101');
   const patients = store.getPatients(hospitalId);
 
+  const activePatId = defaultPatientId || (patients.length > 0 ? patients[0].id : null);
+  window.initDischargeReconciliationState(activePatId);
+
   modalContainer.innerHTML = `
     <div id="requestDischargeModal" class="modal-overlay open" role="dialog" aria-modal="true" aria-labelledby="requestDischargeModalTitle">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3 class="modal-title" id="requestDischargeModalTitle">🚪 Clinical Discharge Order &amp; Doctor Approval</h3>
-          <button type="button" class="modal-close" onclick="closeGlobalModal('requestDischargeModal')" aria-label="Close">✕</button>
+      <div class="modal-box" style="max-width: 900px; max-height: 92vh; display: flex; flex-direction: column;">
+        <div class="modal-header" style="background: #0F172A; color: #FFFFFF; padding: 16px 24px;">
+          <div>
+            <h3 class="modal-title" id="requestDischargeModalTitle" style="color: #FFFFFF; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+              <span>🚪</span> Clinical Discharge Order &amp; Medication Reconciliation
+            </h3>
+            <span style="font-size: 0.75rem; color: #94A3B8;">Mandatory Physician Clearance, Inpatient Regimen Reconciliation &amp; Outpatient Prescriptions</span>
+          </div>
+          <button type="button" class="modal-close" style="color: #94A3B8;" onclick="closeGlobalModal('requestDischargeModal')" aria-label="Close">✕</button>
         </div>
-        <form onsubmit="handleDoctorRequestDischargeSubmit(event)" class="p-20">
+
+        <form onsubmit="handleDoctorRequestDischargeSubmit(event)" style="flex: 1; overflow-y: auto; padding: 20px;">
+          <!-- 1. Patient Selector & Demographics -->
           <div class="form-group mb-16">
-            <label class="form-label" for="dischargePatientSelect">Select Inpatient <span class="text-danger">*</span></label>
-            <select id="dischargePatientSelect" class="form-control" required>
+            <label class="form-label font-semibold" for="dischargePatientSelect">Select Inpatient for Discharge Clearance <span class="text-danger">*</span></label>
+            <select id="dischargePatientSelect" class="form-control" required onchange="window.updateDischargeModalPatient(this.value)">
               ${patients.map(p => `
-                <option value="${p.id}" ${p.id === defaultPatientId ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id}) - Status: ${p.status || 'Active'}</option>
+                <option value="${p.id}" ${p.id === activePatId ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id}) - Ward: ${escapeHtml(p.ward || 'General')} • Status: ${p.status || 'Active'}</option>
               `).join('')}
             </select>
           </div>
+
+          <!-- 2. Vitals at Discharge Clearance -->
           <div class="form-group mb-16">
-            <label class="form-label" for="dischargeVitals">Vitals at Discharge Clearance</label>
-            <input type="text" id="dischargeVitals" class="form-control" placeholder="BP: 120/80 mmHg, HR: 72 bpm, SpO2: 99%" value="">
+            <label class="form-label font-semibold" for="dischargeVitals">Vitals at Discharge Clearance</label>
+            <input type="text" id="dischargeVitals" class="form-control" placeholder="BP: 120/80 mmHg, HR: 72 bpm, SpO2: 99% Room Air, Afebrile" value="">
           </div>
+
+          <!-- 3. Clinical Discharge Summary & Treatment Course -->
           <div class="form-group mb-16">
-            <label class="form-label" for="dischargeSummary">Clinical Discharge Summary &amp; Treatment Outcome <span class="text-danger">*</span></label>
-            <textarea id="dischargeSummary" class="form-control" rows="3" placeholder="e.g. Patient stabilized. Normal cardiac rhythm restored. Vitals stable. Cleared for outpatient transition." required></textarea>
+            <label class="form-label font-semibold" for="dischargeSummary">Clinical Discharge Summary &amp; Treatment Outcome <span class="text-danger">*</span></label>
+            <textarea id="dischargeSummary" class="form-control" rows="3" placeholder="e.g. Acute clinical condition stabilized. Vitals normalized. Successfully completed inpatient pharmacotherapy. Cleared for outpatient transition." required></textarea>
           </div>
+
+          <!-- 4. Mandatory Discharge Medication Reconciliation Station -->
+          <div class="mb-20 p-16 bg-surface-alt radius-md border-subtle">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <div>
+                <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 6px;">
+                  <span>💊</span> Inpatient Medication Reconciliation (Pre-Discharge Review)
+                </h4>
+                <p class="font-xs text-secondary" style="margin: 2px 0 0 0;">
+                  Explicitly reconcile each inpatient drug: Continue at home, Modify for home use, or Discontinue at discharge.
+                </p>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="window.addNewDischargeMedRow()">
+                <span>+</span> Add New Take-Home Drug
+              </button>
+            </div>
+
+            <!-- Inpatient Meds Reconciliation Container -->
+            <div id="dischargeReconListContainer" class="discharge-reconcile-wrap">
+              ${window.renderDischargeReconciliationListHTML()}
+            </div>
+
+            <!-- Newly Added Discharge Medications Container -->
+            <div id="newDischargeMedsContainer" class="mt-12" style="display: flex; flex-direction: column; gap: 10px;">
+              ${window.renderNewDischargeMedsHTML()}
+            </div>
+          </div>
+
+          <!-- 5. Follow-Up & Review Pathway -->
           <div class="form-group mb-20">
-            <label class="form-label" for="dischargeFollowup">Follow-Up &amp; Medication Transition Instructions</label>
-            <textarea id="dischargeFollowup" class="form-control" rows="2" placeholder="e.g. Continue prescribed oral medications for 14 days. Review in Cardiology OPD in 2 weeks."></textarea>
+            <label class="form-label font-semibold" for="dischargeFollowup">Follow-Up &amp; Outpatient Transition Directives</label>
+            <textarea id="dischargeFollowup" class="form-control" rows="2" placeholder="e.g. Outpatient Cardiology review in 14 days with fasting lipid panel. Bring home blood pressure logbook."></textarea>
           </div>
+
           <div id="dischargeAlert" class="alert-banner hidden mb-16"></div>
-          <div class="modal-actions">
+
+          <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px;">
             <button type="button" class="btn btn-secondary" onclick="closeGlobalModal('requestDischargeModal')">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="submitDischargeBtn">Sign &amp; Dispatch Discharge Request</button>
+            <button type="submit" class="btn btn-primary" id="submitDischargeBtn">
+              <span id="submitDischargeSpinner" class="btn-spinner hidden"></span>
+              <span id="submitDischargeText">✍️ Sign &amp; Dispatch Discharge Order</span>
+            </button>
           </div>
         </form>
       </div>
     </div>
   `;
+};
+
+window.initDischargeReconciliationState = function (patientId) {
+  const activeInpatientMeds = patientId ? getPatientActiveMedications(patientId) : [];
+  window._dischargeReconciliationState = {
+    patientId,
+    inpatientMeds: activeInpatientMeds.map((m, idx) => ({
+      ...m,
+      reconDecision: 'CONTINUE', // CONTINUE, MODIFY, DISCONTINUE
+      takeHomeQuantity: m.takeHomeQuantity || '30 Tablets',
+      refillCount: 1,
+      patientInstructions: m.patientInstructions || `Take ${m.frequency || 'Once daily'} ${m.timing || 'with water'}. Do not skip doses.`,
+      discontinueReason: ''
+    })),
+    newDischargeMeds: []
+  };
+};
+
+window.updateDischargeModalPatient = function (patientId) {
+  window.initDischargeReconciliationState(patientId);
+  const reconList = document.getElementById('dischargeReconListContainer');
+  const newMeds = document.getElementById('newDischargeMedsContainer');
+  if (reconList) reconList.innerHTML = window.renderDischargeReconciliationListHTML();
+  if (newMeds) newMeds.innerHTML = window.renderNewDischargeMedsHTML();
+};
+
+window.renderDischargeReconciliationListHTML = function () {
+  const list = window._dischargeReconciliationState.inpatientMeds;
+  if (!list || list.length === 0) {
+    return `
+      <div class="p-16 text-center border-dashed rounded bg-surface text-muted font-xs">
+        No active inpatient medications on file for this patient. Click <strong>+ Add New Take-Home Drug</strong> to prescribe outpatient medications.
+      </div>
+    `;
+  }
+
+  return list.map((m, idx) => `
+    <div class="recon-med-card status-${m.reconDecision.toLowerCase()}" id="reconCard_${idx}">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <div style="font-weight: 800; color: #0F172A; font-size: 0.92rem;">
+            ${escapeHtml(m.name)} <span class="badge badge-subtle font-xs">${escapeHtml(m.dosage)}</span>
+          </div>
+          <span style="font-size: 0.74rem; color: #64748B;">
+            Inpatient: ${escapeHtml(m.scheduleTag || `${m.frequency} • ${m.timing || 'After Meals'}`)} • Route: ${escapeHtml(m.route || 'Oral')}
+          </span>
+        </div>
+
+        <!-- Decision Selector Pill Group -->
+        <div class="recon-actions-bar" role="group" aria-label="Reconciliation Decision for ${escapeHtml(m.name)}">
+          <button
+            type="button"
+            class="btn-recon-pill ${m.reconDecision === 'CONTINUE' ? 'selected-continue' : ''}"
+            onclick="window.setReconDecision(${idx}, 'CONTINUE')"
+          >
+            ✓ Continue
+          </button>
+          <button
+            type="button"
+            class="btn-recon-pill ${m.reconDecision === 'MODIFY' ? 'selected-modify' : ''}"
+            onclick="window.setReconDecision(${idx}, 'MODIFY')"
+          >
+            ~ Modify
+          </button>
+          <button
+            type="button"
+            class="btn-recon-pill ${m.reconDecision === 'DISCONTINUE' ? 'selected-discontinue' : ''}"
+            onclick="window.setReconDecision(${idx}, 'DISCONTINUE')"
+          >
+            ✕ Discontinue
+          </button>
+        </div>
+      </div>
+
+      <!-- Conditional Input Panels based on Decision -->
+      ${m.reconDecision === 'DISCONTINUE' ? `
+        <div class="mt-10 p-10 bg-surface radius-sm border-subtle">
+          <label class="form-label font-xs text-danger font-semibold" for="reconDiscReason_${idx}">
+            Mandatory Discharge Discontinuation Reason <span class="text-danger">*</span>
+          </label>
+          <input
+            type="text"
+            id="reconDiscReason_${idx}"
+            class="form-control font-xs"
+            placeholder="e.g. Inpatient therapeutic target reached; acute IV antibiotic completed; switched to oral"
+            value="${escapeHtml(m.discontinueReason || 'Completed inpatient course')}"
+            oninput="window._dischargeReconciliationState.inpatientMeds[${idx}].discontinueReason = this.value"
+          >
+        </div>
+      ` : `
+        <div class="mt-10 p-10 bg-surface radius-sm border-subtle" style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 10px;">
+          <div>
+            <label class="form-label font-xs font-semibold" for="reconTakeHomeQty_${idx}">Take-Home Qty</label>
+            <input
+              type="text"
+              id="reconTakeHomeQty_${idx}"
+              class="form-control font-xs"
+              value="${escapeHtml(m.takeHomeQuantity || '30 Tablets')}"
+              oninput="window._dischargeReconciliationState.inpatientMeds[${idx}].takeHomeQuantity = this.value"
+            >
+          </div>
+          <div>
+            <label class="form-label font-xs font-semibold" for="reconRefills_${idx}">Refills</label>
+            <select
+              id="reconRefills_${idx}"
+              class="form-control font-xs"
+              onchange="window._dischargeReconciliationState.inpatientMeds[${idx}].refillCount = parseInt(this.value)"
+            >
+              <option value="0" ${m.refillCount === 0 ? 'selected' : ''}>0 Refills</option>
+              <option value="1" ${m.refillCount === 1 ? 'selected' : ''}>1 Refill</option>
+              <option value="2" ${m.refillCount === 2 ? 'selected' : ''}>2 Refills</option>
+              <option value="3" ${m.refillCount === 3 ? 'selected' : ''}>3 Refills</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label font-xs font-semibold" for="reconInstructions_${idx}">Plain-Language Patient Directions</label>
+            <input
+              type="text"
+              id="reconInstructions_${idx}"
+              class="form-control font-xs"
+              placeholder="e.g. Take 1 tablet every morning with breakfast"
+              value="${escapeHtml(m.patientInstructions || '')}"
+              oninput="window._dischargeReconciliationState.inpatientMeds[${idx}].patientInstructions = this.value"
+            >
+          </div>
+        </div>
+      `}
+    </div>
+  `).join('');
+};
+
+window.setReconDecision = function (idx, decision) {
+  if (window._dischargeReconciliationState.inpatientMeds[idx]) {
+    window._dischargeReconciliationState.inpatientMeds[idx].reconDecision = decision;
+    const container = document.getElementById('dischargeReconListContainer');
+    if (container) container.innerHTML = window.renderDischargeReconciliationListHTML();
+  }
+};
+
+window.addNewDischargeMedRow = function () {
+  window._dischargeReconciliationState.newDischargeMeds.push({
+    name: '',
+    dosage: '500mg',
+    form: 'Tablet',
+    frequency: 'Once Daily (OD)',
+    route: 'Oral',
+    mealTiming: 'After Meals',
+    takeHomeQuantity: '30 Tablets',
+    refillCount: 1,
+    patientInstructions: 'Take 1 tablet daily with a full glass of water.',
+    duration: '30 days'
+  });
+  const container = document.getElementById('newDischargeMedsContainer');
+  if (container) container.innerHTML = window.renderNewDischargeMedsHTML();
+};
+
+window.removeNewDischargeMedRow = function (idx) {
+  window._dischargeReconciliationState.newDischargeMeds.splice(idx, 1);
+  const container = document.getElementById('newDischargeMedsContainer');
+  if (container) container.innerHTML = window.renderNewDischargeMedsHTML();
+};
+
+window.renderNewDischargeMedsHTML = function () {
+  const list = window._dischargeReconciliationState.newDischargeMeds;
+  if (!list || list.length === 0) return '';
+
+  return list.map((m, idx) => `
+    <div class="recon-med-card" style="border-left: 4px solid #0D9488; background: #F0FDFA;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 0.8rem; font-weight: 800; color: #0F766E;">
+          ✨ New Outpatient Discharge Prescription #${idx + 1}
+        </span>
+        <button type="button" class="btn btn-outline-danger btn-xs" onclick="window.removeNewDischargeMedRow(${idx})">
+          ✕ Remove
+        </button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <div>
+          <label class="form-label font-xs font-semibold">Medication Name &amp; Strength</label>
+          <input
+            type="text"
+            class="form-control font-xs"
+            placeholder="e.g. Rosuvastatin 20mg"
+            value="${escapeHtml(m.name)}"
+            oninput="window._dischargeReconciliationState.newDischargeMeds[${idx}].name = this.value"
+            required
+          >
+        </div>
+        <div>
+          <label class="form-label font-xs font-semibold">Frequency (10 Options)</label>
+          <select
+            class="form-control font-xs"
+            onchange="window._dischargeReconciliationState.newDischargeMeds[${idx}].frequency = this.value"
+          >
+            ${CLINICAL_FREQUENCIES.map(f => `
+              <option value="${escapeHtml(f.code)}" ${m.frequency === f.code ? 'selected' : ''}>${escapeHtml(f.label)}</option>
+            `).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="form-label font-xs font-semibold">Take-Home Qty</label>
+          <input
+            type="text"
+            class="form-control font-xs"
+            value="${escapeHtml(m.takeHomeQuantity)}"
+            oninput="window._dischargeReconciliationState.newDischargeMeds[${idx}].takeHomeQuantity = this.value"
+          >
+        </div>
+        <div>
+          <label class="form-label font-xs font-semibold">Refills</label>
+          <select
+            class="form-control font-xs"
+            onchange="window._dischargeReconciliationState.newDischargeMeds[${idx}].refillCount = parseInt(this.value)"
+          >
+            <option value="0" ${m.refillCount === 0 ? 'selected' : ''}>0</option>
+            <option value="1" ${m.refillCount === 1 ? 'selected' : ''}>1</option>
+            <option value="2" ${m.refillCount === 2 ? 'selected' : ''}>2</option>
+            <option value="3" ${m.refillCount === 3 ? 'selected' : ''}>3</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="form-label font-xs font-semibold">Patient Take-Home Directions</label>
+        <input
+          type="text"
+          class="form-control font-xs"
+          placeholder="e.g. Take 1 tablet at bedtime with water for cholesterol control."
+          value="${escapeHtml(m.patientInstructions)}"
+          oninput="window._dischargeReconciliationState.newDischargeMeds[${idx}].patientInstructions = this.value"
+        >
+      </div>
+    </div>
+  `).join('');
 };
 
 window.handleDoctorRequestDischargeSubmit = async function (event) {
@@ -4676,39 +5532,115 @@ window.handleDoctorRequestDischargeSubmit = async function (event) {
   const followup = document.getElementById('dischargeFollowup')?.value.trim();
   const alertEl = document.getElementById('dischargeAlert');
   const submitBtn = document.getElementById('submitDischargeBtn');
+  const spinner = document.getElementById('submitDischargeSpinner');
+  const btnText = document.getElementById('submitDischargeText');
 
   if (!patientId || !summary) {
     if (alertEl) {
       alertEl.textContent = 'Please select a patient and provide a clinical discharge summary.';
       alertEl.className = 'alert-banner error mb-16';
-      alertEl?.classList?.remove?.('hidden');
+      alertEl.classList.remove('hidden');
     }
     return;
   }
 
-  const fullSummary = `${summary}${vitals ? ` | Vitals: ${vitals}` : ''}${followup ? ` | Follow-up: ${followup}` : ''}`;
+  const reconState = window._dischargeReconciliationState;
+  const dischargeMedicinesToPrescribe = [];
+
+  // 1. Process reconciled inpatient medications
+  if (reconState.inpatientMeds && reconState.inpatientMeds.length > 0) {
+    for (const m of reconState.inpatientMeds) {
+      if (m.reconDecision === 'DISCONTINUE') {
+        const discReason = m.discontinueReason?.trim() || 'Discontinued upon hospital discharge';
+        if (m.id && window.hospitrackStore && typeof window.hospitrackStore.updateMedicationItemStatus === 'function') {
+          try {
+            await window.hospitrackStore.updateMedicationItemStatus(m.id, 'DISCONTINUED', discReason);
+          } catch (e) {
+            console.warn('Notice: Discontinue inpatient med status sync:', e.message);
+          }
+        }
+      } else {
+        // CONTINUE or MODIFY -> Convert into discharge outpatient prescription
+        dischargeMedicinesToPrescribe.push({
+          name: m.name,
+          brandName: m.brandName || '',
+          dosage: m.dosage,
+          dosageForm: m.form || m.dosageForm || 'Tablet',
+          frequency: m.frequency,
+          route: m.route || 'Oral',
+          mealTiming: m.mealTiming || m.timing || 'After Meals',
+          duration: '30 days',
+          takeHomeQuantity: m.takeHomeQuantity || '30 Tablets',
+          refillCount: m.refillCount || 0,
+          patientInstructions: m.patientInstructions || 'Take as directed by physician',
+          instructions: `Discharge Regimen: ${m.patientInstructions || 'Take as directed'}`,
+          orderType: 'DISCHARGE',
+          status: 'ACTIVE'
+        });
+      }
+    }
+  }
+
+  // 2. Process newly added discharge medications
+  if (reconState.newDischargeMeds && reconState.newDischargeMeds.length > 0) {
+    for (const nm of reconState.newDischargeMeds) {
+      if (nm.name && nm.name.trim()) {
+        dischargeMedicinesToPrescribe.push({
+          name: nm.name.trim(),
+          dosage: nm.dosage || 'Standard dose',
+          dosageForm: nm.form || 'Tablet',
+          frequency: nm.frequency || 'Once Daily (OD)',
+          route: nm.route || 'Oral',
+          mealTiming: nm.mealTiming || 'After Meals',
+          duration: nm.duration || '30 days',
+          takeHomeQuantity: nm.takeHomeQuantity || '30 Tablets',
+          refillCount: nm.refillCount || 0,
+          patientInstructions: nm.patientInstructions || 'Take as directed',
+          instructions: `Discharge Regimen: ${nm.patientInstructions || 'Take as directed'}`,
+          orderType: 'DISCHARGE',
+          status: 'ACTIVE'
+        });
+      }
+    }
+  }
 
   try {
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Submitting Request...';
+    if (submitBtn) submitBtn.disabled = true;
+    if (spinner) spinner.classList.remove('hidden');
+    if (btnText) btnText.textContent = 'Finalizing Reconciliation & Request...';
+
+    // 3. Persist discharge prescription to backend if medications exist
+    if (dischargeMedicinesToPrescribe.length > 0 && window.hospitrackStore && typeof window.hospitrackStore.createPrescription === 'function') {
+      const user = window.hospitrackAuth?.getCurrentUser();
+      await window.hospitrackStore.createPrescription({
+        patientId,
+        orderType: 'DISCHARGE',
+        doctorId: user?.doctorId || user?.id,
+        hospitalId: user?.hospitalId || 'HOSP-101',
+        instructions: `Discharge Pharmacotherapy Summary: ${dischargeMedicinesToPrescribe.length} outpatient medications reconciled.`,
+        medicines: dischargeMedicinesToPrescribe
+      });
     }
 
+    // 4. Request patient discharge in hospital care stream
+    const fullSummary = `${summary}${vitals ? ` | Vitals: ${vitals}` : ''}${followup ? ` | Follow-up: ${followup}` : ''}`;
     await window.hospitrackStore.requestPatientDischarge(patientId, fullSummary);
-    window.showToast('✓ Doctor discharge approval recorded. Request dispatched to hospital clearance deck.', 'success');
+
+    window.showToast('✓ Doctor discharge clearance & medication reconciliation signed successfully.', 'success');
     closeGlobalModal('requestDischargeModal');
-    window.renderDoctorDashboard(document.getElementById('mainContentArea'), 'discharge-requests');
+    if (typeof window.renderDoctorDashboard === 'function') {
+      window.renderDoctorDashboard(document.getElementById('mainContentArea'), 'discharge-requests');
+    }
   } catch (err) {
     if (alertEl) {
-      alertEl.textContent = err.message || 'Failed to submit discharge request.';
+      alertEl.textContent = err.message || 'Failed to submit discharge clearance.';
       alertEl.className = 'alert-banner error mb-16';
-      alertEl?.classList?.remove?.('hidden');
+      alertEl.classList.remove('hidden');
     }
   } finally {
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Sign & Dispatch Discharge Request';
-    }
+    if (submitBtn) submitBtn.disabled = false;
+    if (spinner) spinner.classList.add('hidden');
+    if (btnText) btnText.textContent = '✍️ Sign & Dispatch Discharge Order';
   }
 };
 

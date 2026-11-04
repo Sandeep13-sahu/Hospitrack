@@ -3601,7 +3601,7 @@ window.shareDischargePaperwork = function() {
 };
 
 function renderDischargeSubtabContent(activeSubtab, dischargeData) {
-  const { episode, hospitalCourse, medicationReconciliation, recoveryDirectives, followUpPathway } = dischargeData;
+  const { episode, hospitalCourse, medicationReconciliation, recoveryDirectives, followUpPathway, discontinuedMedications = [] } = dischargeData;
 
   const showCourse = activeSubtab === 'ALL' || activeSubtab === 'COURSE';
   const showMeds = activeSubtab === 'ALL' || activeSubtab === 'MEDS';
@@ -3757,6 +3757,7 @@ function renderDischargeSubtabContent(activeSubtab, dischargeData) {
             <tbody>
               ${medicationReconciliation.map(med => {
                 const isNew = med.type === 'NEW';
+                const isModified = med.type === 'MODIFIED';
                 return `
                   <tr>
                     <td>
@@ -3766,9 +3767,11 @@ function renderDischargeSubtabContent(activeSubtab, dischargeData) {
                     <td>
                       ${isNew ? `
                         <span class="med-category-chip new">✨ Newly Added</span>
+                      ` : (isModified ? `
+                        <span class="med-category-chip modified" style="background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;">✏️ Dosage Titrated</span>
                       ` : `
                         <span class="med-category-chip continued">✓ Continued</span>
-                      `}
+                      `)}
                     </td>
                     <td style="color: #334155; font-weight: 600;">${escapeHtml(med.indication)}</td>
                     <td><span class="med-schedule-pill">${escapeHtml(med.dosageSchedule)}</span></td>
@@ -3787,7 +3790,10 @@ function renderDischargeSubtabContent(activeSubtab, dischargeData) {
           <div>
             <div class="alert-title">Critical Safety Alert: Discontinued Home Medications</div>
             <div class="alert-body">
-              ⚠️ Discontinue prior medication: Do not take OTC Ibuprofen, Naproxen, or other NSAIDs while on dual blood thinners (Aspirin + Clopidogrel) due to heightened risk of gastrointestinal bleeding. Use Paracetamol (Acetaminophen) for mild pain relief after consulting your physician.
+              ${discontinuedMedications && discontinuedMedications.length > 0 
+                ? discontinuedMedications.map(d => `<div style="margin-bottom: 4px;"><strong>🛑 ${escapeHtml(d.name)}</strong>: ${escapeHtml(d.reason)}</div>`).join('')
+                : `⚠️ Discontinue prior medication: Do not take OTC Ibuprofen, Naproxen, or other NSAIDs while on dual blood thinners (Aspirin + Clopidogrel) due to heightened risk of gastrointestinal bleeding. Use Paracetamol (Acetaminophen) for mild pain relief after consulting your physician.`
+              }
             </div>
           </div>
         </div>
@@ -3932,6 +3938,51 @@ function renderDischargeRecordsView(data) {
   const physician = 'Dr. Arjun Verma, MD (Internal Medicine)';
   const icdTag = 'I21.9 - Acute Myocardial Infarction / Unspecified';
 
+  // Extract real discharge medications and discontinued records if present in store
+  const patientPrescriptions = (store.getPrescriptions && patId ? store.getPrescriptions(patId) : []) || [];
+  const realDischargeItems = [];
+  const realDiscontinuedItems = [];
+
+  patientPrescriptions.forEach(rx => {
+    const rxOrderType = rx.orderType || '';
+    const doctorName = rx.doctorName || 'Dr. Arjun Verma';
+    (rx.items || []).forEach(item => {
+      if (item.status === 'DISCONTINUED') {
+        realDiscontinuedItems.push({
+          name: `${item.medicineName || item.name} ${item.dosage || ''}`.trim(),
+          reason: item.discontinueReason || 'Discontinued by attending clinician prior to discharge',
+          discontinuedAt: item.discontinuedAt || rx.prescribedAt
+        });
+      } else if (item.orderType === 'DISCHARGE' || rxOrderType === 'DISCHARGE') {
+        let scheduleStr = item.frequency || 'Once daily';
+        if (item.mealTiming && item.mealTiming !== 'None') {
+          scheduleStr += ` (${item.mealTiming.replace(/_/g, ' ')})`;
+        }
+        if (item.administrationTimes) {
+          scheduleStr += ` [${item.administrationTimes}]`;
+        }
+        let durationStr = item.duration || '30 Days';
+        if (item.takeHomeQuantity) {
+          durationStr += ` (Dispensed: ${item.takeHomeQuantity})`;
+        }
+        if (item.refillCount) {
+          durationStr += ` • ${item.refillCount} refills`;
+        }
+
+        realDischargeItems.push({
+          id: item.id || `DISC-${realDischargeItems.length + 1}`,
+          name: `${item.dosageForm ? item.dosageForm + ' ' : ''}${item.medicineName || item.name} ${item.dosage || ''}`.trim(),
+          type: item.reconciliationStatus === 'MODIFIED' ? 'MODIFIED' : (item.reconciliationStatus === 'CONTINUED' ? 'CONTINUED' : 'NEW'),
+          indication: item.instructions || 'Cardiovascular outpatient maintenance & rehabilitation',
+          dosageSchedule: scheduleStr,
+          duration: durationStr,
+          instructions: item.instructions || 'Take as directed by physician.',
+          prescribedBy: doctorName
+        });
+      }
+    });
+  });
+
   const dischargeData = {
     patient: { ...patient, name: patName, id: patId },
     episode: {
@@ -4016,7 +4067,7 @@ function renderDischargeRecordsView(data) {
         { testName: '12-Lead ECG at Discharge', result: 'Normal Sinus Rhythm, No ST-T Elevation', unit: 'Telemetry', refRange: 'Verified', status: 'EVALUATED' }
       ]
     },
-    medicationReconciliation: [
+    medicationReconciliation: realDischargeItems.length > 0 ? realDischargeItems : [
       {
         id: 'MED-1',
         name: 'Rosuvastatin 20mg Tablet',
@@ -4068,6 +4119,7 @@ function renderDischargeRecordsView(data) {
         prescribedBy: 'Dr. Arjun Verma'
       }
     ],
+    discontinuedMedications: realDiscontinuedItems,
     recoveryDirectives: {
       activityRestrictions: [
         'Walking permitted on flat surfaces (20-30 minutes daily recommended).',

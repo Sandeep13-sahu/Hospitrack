@@ -6,31 +6,32 @@ import com.hospitrack.entity.PrescriptionItem;
 import com.hospitrack.exception.BadRequestException;
 import com.hospitrack.exception.PrescriptionSafetyViolationException;
 import com.hospitrack.exception.ResourceNotFoundException;
+import com.hospitrack.repository.PrescriptionItemRepository;
 import com.hospitrack.repository.PrescriptionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @Service
 public class PrescriptionService {
 
     private final PrescriptionRepository prescriptionRepository;
+    private final PrescriptionItemRepository prescriptionItemRepository;
     private final AuditService auditService;
     private final PatientEventStreamService eventStreamService;
     private final ClinicalSafetyEngine clinicalSafetyEngine;
 
     public PrescriptionService(
             PrescriptionRepository prescriptionRepository,
+            PrescriptionItemRepository prescriptionItemRepository,
             AuditService auditService,
             PatientEventStreamService eventStreamService,
             ClinicalSafetyEngine clinicalSafetyEngine
     ) {
         this.prescriptionRepository = prescriptionRepository;
+        this.prescriptionItemRepository = prescriptionItemRepository;
         this.auditService = auditService;
         this.eventStreamService = eventStreamService;
         this.clinicalSafetyEngine = clinicalSafetyEngine;
@@ -44,6 +45,11 @@ public class PrescriptionService {
     @Transactional(readOnly = true)
     public List<Prescription> getPrescriptionsByPatient(String patientId) {
         return prescriptionRepository.findByPatientIdOrderByPrescribedAtDesc(patientId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Prescription> getPrescriptionsByDoctor(String doctorId) {
+        return prescriptionRepository.findByDoctorId(doctorId);
     }
 
     @Transactional(readOnly = true)
@@ -96,7 +102,13 @@ public class PrescriptionService {
             throw new PrescriptionSafetyViolationException("HIGH-RISK DRUG INTERACTION: " + detail + " Clinical override rationale required before signing pharmacotherapy order.");
         }
 
-        String id = "RX-" + (800 + prescriptionRepository.count() + 1);
+        long count = prescriptionRepository.count();
+        String id = "RX-" + (800 + count + 1);
+        int seq = 0;
+        while (prescriptionRepository.existsById(id)) {
+            seq++;
+            id = "RX-" + (800 + count + 1 + seq);
+        }
         Prescription prescription = new Prescription(
                 id,
                 request.getVisitId(),
@@ -105,6 +117,9 @@ public class PrescriptionService {
                 request.getHospitalId(),
                 LocalDateTime.now()
         );
+        prescription.setOrderType(request.getOrderType() != null ? request.getOrderType() : "INPATIENT");
+        prescription.setInstructions(request.getInstructions());
+        prescription.setClinicalOverrideReason(request.getClinicalOverrideReason());
 
         for (PrescriptionRequest.MedicineItemDto itemDto : request.getMedicines()) {
             PrescriptionItem item = new PrescriptionItem(
@@ -114,6 +129,26 @@ public class PrescriptionService {
                     itemDto.getDuration(),
                     itemDto.getInstructions()
             );
+            item.setBrandName(itemDto.getBrandName());
+            item.setDrugCategory(itemDto.getDrugCategory());
+            item.setDosageForm(itemDto.getDosageForm() != null ? itemDto.getDosageForm() : "Tablet");
+            item.setRoute(itemDto.getRoute() != null ? itemDto.getRoute() : "Oral");
+            item.setMealTiming(itemDto.getMealTiming());
+            item.setPatientInstructions(itemDto.getPatientInstructions());
+            item.setIsStat(Boolean.TRUE.equals(itemDto.getIsStat()));
+            item.setIsPrn(Boolean.TRUE.equals(itemDto.getIsPrn()));
+            item.setPrnIndication(itemDto.getPrnIndication());
+            item.setPrnMinIntervalHours(itemDto.getPrnMinIntervalHours());
+            item.setPrnMaxDailyDoses(itemDto.getPrnMaxDailyDoses());
+            item.setAdministrationTimes(itemDto.getAdministrationTimes());
+            item.setTakeHomeQuantity(itemDto.getTakeHomeQuantity());
+            item.setRefillCount(itemDto.getRefillCount() != null ? itemDto.getRefillCount() : 0);
+            item.setOrderType(itemDto.getOrderType() != null ? itemDto.getOrderType() : prescription.getOrderType());
+            item.setStatus(itemDto.getStatus() != null ? itemDto.getStatus() : "ACTIVE");
+            item.setIvInfusionRate(itemDto.getIvInfusionRate());
+            item.setIvDiluent(itemDto.getIvDiluent());
+            item.setReconciliationStatus(itemDto.getReconciliationStatus());
+
             prescription.addItem(item);
         }
 
@@ -123,11 +158,11 @@ public class PrescriptionService {
         for (int i = 0; i < request.getMedicines().size(); i++) {
             if (i > 0) medSummary.append(", ");
             PrescriptionRequest.MedicineItemDto m = request.getMedicines().get(i);
-            medSummary.append(m.getName()).append(" (").append(m.getDosage()).append(")");
+            medSummary.append(m.getName()).append(" (").append(m.getDosage()).append(" - ").append(m.getFrequency()).append(")");
         }
 
         auditService.logEvent(actorId, actorRole, actorName, "PRESCRIPTION_CREATED", "PRESCRIPTION", saved.getId(),
-                "Issued prescription " + saved.getId() + " for " + saved.getPatientId() + ": " + medSummary);
+                "Issued " + saved.getOrderType() + " prescription " + saved.getId() + " for " + saved.getPatientId() + ": " + medSummary);
 
         if (Boolean.TRUE.equals(request.getOverrideConfirmed()) && request.getClinicalOverrideReason() != null && !request.getClinicalOverrideReason().isBlank()) {
             auditService.logEvent(actorId, actorRole, actorName, "PRESCRIPTION_CLINICAL_OVERRIDE", "PRESCRIPTION", saved.getId(),
@@ -139,5 +174,67 @@ public class PrescriptionService {
         }
 
         return saved;
+    }
+
+    @Transactional
+    public PrescriptionItem updateItemStatus(Long itemId, String newStatus, String reason, String actorId, String actorRole, String actorName) {
+        PrescriptionItem item = prescriptionItemRepository.findById(Objects.requireNonNull(itemId))
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription item not found: " + itemId));
+
+        String normalizedStatus = newStatus != null ? newStatus.trim().toUpperCase() : "ACTIVE";
+        item.setStatus(normalizedStatus);
+
+        if ("DISCONTINUED".equalsIgnoreCase(normalizedStatus)) {
+            if (reason == null || reason.trim().isBlank()) {
+                throw new BadRequestException("Mandatory clinical reason is required to discontinue medication order.");
+            }
+            item.setDiscontinueReason(reason.trim());
+            item.setDiscontinuedAt(LocalDateTime.now());
+            item.setDiscontinuedBy(actorName != null ? actorName : actorId);
+        } else if ("HELD".equalsIgnoreCase(normalizedStatus)) {
+            item.setHoldReason(reason != null ? reason.trim() : "Clinical hold order placed.");
+        } else if ("ACTIVE".equalsIgnoreCase(normalizedStatus)) {
+            item.setHoldReason(null);
+        }
+
+        PrescriptionItem updated = prescriptionItemRepository.save(item);
+
+        auditService.logEvent(actorId, actorRole, actorName, "MEDICATION_STATUS_CHANGED", "PRESCRIPTION_ITEM", String.valueOf(itemId),
+                "Updated medication '" + item.getName() + "' status to " + normalizedStatus + (reason != null ? " (Reason: " + reason.trim() + ")" : ""));
+
+        if (item.getPrescription() != null && item.getPrescription().getPatientId() != null) {
+            eventStreamService.emitPatientEvent(item.getPrescription().getPatientId(), "MEDICATION_STATUS_CHANGED", updated);
+        }
+
+        return updated;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getReconciliationByPatient(String patientId) {
+        List<Prescription> prescriptions = prescriptionRepository.findByPatientIdOrderByPrescribedAtDesc(patientId);
+        List<PrescriptionItem> inpatientActive = new ArrayList<>();
+        List<PrescriptionItem> inpatientDiscontinued = new ArrayList<>();
+        List<PrescriptionItem> dischargeMeds = new ArrayList<>();
+
+        for (Prescription rx : prescriptions) {
+            for (PrescriptionItem item : rx.getItems()) {
+                if ("DISCHARGE".equalsIgnoreCase(item.getOrderType()) || "DISCHARGE".equalsIgnoreCase(rx.getOrderType())) {
+                    dischargeMeds.add(item);
+                } else {
+                    if ("DISCONTINUED".equalsIgnoreCase(item.getStatus())) {
+                        inpatientDiscontinued.add(item);
+                    } else {
+                        inpatientActive.add(item);
+                    }
+                }
+            }
+        }
+
+        Map<String, Object> recon = new HashMap<>();
+        recon.put("patientId", patientId);
+        recon.put("activeInpatientMedications", inpatientActive);
+        recon.put("discontinuedInpatientMedications", inpatientDiscontinued);
+        recon.put("dischargeMedications", dischargeMeds);
+        return recon;
     }
 }

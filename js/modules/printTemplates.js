@@ -614,11 +614,33 @@
 
       const patientRxList = (store.getPrescriptions && patient.id ? store.getPrescriptions(patient.id) : []) || [];
       const dischargeMeds = [];
+      const discontinuedMeds = [];
+
       patientRxList.forEach(rx => {
+        const isDischargeOrder = rx.orderType === 'DISCHARGE';
         if (Array.isArray(rx.items)) {
-          rx.items.forEach(item => dischargeMeds.push(item));
+          rx.items.forEach(item => {
+            if (item.status === 'DISCONTINUED') {
+              discontinuedMeds.push(item);
+            } else if (item.orderType === 'DISCHARGE' || isDischargeOrder) {
+              dischargeMeds.push(item);
+            }
+          });
         }
       });
+
+      // If no explicit discharge items were flagged, fallback to non-discontinued items
+      if (dischargeMeds.length === 0) {
+        patientRxList.forEach(rx => {
+          if (Array.isArray(rx.items)) {
+            rx.items.forEach(item => {
+              if (item.status !== 'DISCONTINUED') {
+                dischargeMeds.push(item);
+              }
+            });
+          }
+        });
+      }
 
       return `
         <div class="print-medical-sheet print-discharge-sheet">
@@ -704,15 +726,28 @@
                 </tr>
               </thead>
               <tbody>
-                ${dischargeMeds.length > 0 ? dischargeMeds.map((m, idx) => `
-                  <tr>
-                    <td>${idx + 1}</td>
-                    <td><strong>${escapeHtml(m.name || m.medicineName)} ${escapeHtml(m.dosage || '')}</strong></td>
-                    <td>${escapeHtml(m.frequency || 'As directed')} (${escapeHtml(m.timing || 'After meals')})</td>
-                    <td>${escapeHtml(m.duration || 'Standard')}</td>
-                    <td>${escapeHtml(m.instructions || 'Outpatient pharmacotherapy regimen')}</td>
-                  </tr>
-                `).join('') : `
+                ${dischargeMeds.length > 0 ? dischargeMeds.map((m, idx) => {
+                  let scheduleText = m.frequency || 'Once daily';
+                  if (m.mealTiming && m.mealTiming !== 'None') {
+                    scheduleText += ` (${m.mealTiming.replace(/_/g, ' ')})`;
+                  }
+                  if (m.administrationTimes) {
+                    scheduleText += ` [${m.administrationTimes}]`;
+                  }
+                  let durationText = m.duration || 'Standard';
+                  if (m.takeHomeQuantity) {
+                    durationText += ` (Qty: ${m.takeHomeQuantity})`;
+                  }
+                  return `
+                    <tr>
+                      <td>${idx + 1}</td>
+                      <td><strong>${escapeHtml(m.dosageForm ? m.dosageForm + ' ' : '')}${escapeHtml(m.name || m.medicineName)} ${escapeHtml(m.dosage || '')}</strong></td>
+                      <td>${escapeHtml(scheduleText)}</td>
+                      <td>${escapeHtml(durationText)}</td>
+                      <td>${escapeHtml(m.instructions || 'Outpatient pharmacotherapy regimen')}</td>
+                    </tr>
+                  `;
+                }).join('') : `
                   <tr>
                     <td colspan="5" style="text-align: center; color: #64748B; padding: 14px; font-style: italic;">
                       No ongoing outpatient medication regimen specified at discharge.
@@ -722,6 +757,17 @@
               </tbody>
             </table>
           </div>
+
+          ${discontinuedMeds.length > 0 ? `
+            <div style="margin-top: 10px; background: #FEF2F2; border: 1.5px solid #FECACA; padding: 8px 12px; border-radius: 6px;">
+              <div style="font-size: 0.76rem; font-weight: 800; color: #991B1B;">⚠️ CRITICAL: MEDICATIONS DISCONTINUED AT DISCHARGE (DO NOT RESUME AT HOME)</div>
+              <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 0.74rem; color: #991B1B;">
+                ${discontinuedMeds.map(m => `
+                  <li><strong>${escapeHtml(m.medicineName || m.name)} ${escapeHtml(m.dosage || '')}</strong>: Discontinued (${escapeHtml(m.discontinueReason || 'Discontinued by attending physician')})</li>
+                `).join('')}
+              </ul>
+            </div>
+          ` : ''}
 
           <!-- Follow-up Directives -->
           <div style="margin-top: 12px; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 10px 14px; border-radius: 6px;">

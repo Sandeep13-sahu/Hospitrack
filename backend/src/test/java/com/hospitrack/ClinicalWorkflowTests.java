@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -311,5 +313,163 @@ public class ClinicalWorkflowTests {
                         .content("{\"clearanceNotes\":\"Duplicate discharge attempt\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Patient is already marked as discharged."));
+    }
+
+    @Test
+    @DisplayName("[9] Inpatient Medication Prescribing: Supports STAT, SOS/PRN, and Interval frequencies with full clinical metadata")
+    void testInpatientPrescriptionWithAdvancedFrequencies() throws Exception {
+        String tokenDoctor = jwtTokenProvider.generateTokenFromUser(doctorUser);
+
+        PrescriptionRequest req = new PrescriptionRequest();
+        req.setPatientId("PAT-301");
+        req.setDoctorId("DOC-201");
+        req.setHospitalId("HOSP-101");
+        req.setOrderType("INPATIENT");
+
+        List<PrescriptionRequest.MedicineItemDto> items = new ArrayList<>();
+
+        // 1. STAT order
+        PrescriptionRequest.MedicineItemDto statMed = new PrescriptionRequest.MedicineItemDto();
+        statMed.setName("Furosemide (Lasix)");
+        statMed.setDosage("40mg");
+        statMed.setDosageForm("Injection");
+        statMed.setFrequency("STAT");
+        statMed.setRoute("Intravenous (IV)");
+        statMed.setIsStat(true);
+        statMed.setDuration("Single Dose");
+        statMed.setInstructions("Acute pulmonary congestion; administer IV push stat over 2 minutes");
+        items.add(statMed);
+
+        // 2. SOS / PRN order
+        PrescriptionRequest.MedicineItemDto prnMed = new PrescriptionRequest.MedicineItemDto();
+        prnMed.setName("Paracetamol");
+        prnMed.setDosage("650mg");
+        prnMed.setDosageForm("Tablet");
+        prnMed.setFrequency("SOS / PRN");
+        prnMed.setRoute("Oral");
+        prnMed.setIsPrn(true);
+        prnMed.setPrnIndication("For fever > 101°F or severe body ache");
+        prnMed.setPrnMinIntervalHours(4);
+        prnMed.setPrnMaxDailyDoses(4);
+        prnMed.setDuration("5 days");
+        prnMed.setInstructions("Do not exceed 4 tablets in 24 hours");
+        items.add(prnMed);
+
+        // 3. Interval-based q8h order
+        PrescriptionRequest.MedicineItemDto intervalMed = new PrescriptionRequest.MedicineItemDto();
+        intervalMed.setName("Ceftriaxone");
+        intervalMed.setDosage("1g");
+        intervalMed.setDosageForm("IV Infusion");
+        intervalMed.setFrequency("Every 8 Hours (q8h)");
+        intervalMed.setRoute("Intravenous (IV)");
+        intervalMed.setAdministrationTimes("08:00, 16:00, 00:00");
+        intervalMed.setIvInfusionRate("100 mL/hr");
+        intervalMed.setIvDiluent("Normal Saline 100mL");
+        intervalMed.setDuration("7 days");
+        items.add(intervalMed);
+
+        req.setMedicines(items);
+
+        String responseBody = mockMvc.perform(post("/api/prescriptions")
+                        .header("Authorization", "Bearer " + tokenDoctor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.orderType").value("INPATIENT"))
+                .andExpect(jsonPath("$.data.items", org.hamcrest.Matchers.hasSize(3)))
+                .andReturn().getResponse().getContentAsString();
+
+        com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(responseBody);
+        long prnItemId = root.path("data").path("items").get(1).path("id").asLong();
+
+        // [10] Test Medication Status transitions: HOLD and DISCONTINUE
+        mockMvc.perform(patch("/api/prescriptions/items/" + prnItemId + "/status")
+                        .header("Authorization", "Bearer " + tokenDoctor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"HELD\",\"reason\":\"Pending liver function test review\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("HELD"))
+                .andExpect(jsonPath("$.data.holdReason").value("Pending liver function test review"));
+
+        // Test Discontinue with missing reason (should fail with 400 Bad Request)
+        mockMvc.perform(patch("/api/prescriptions/items/" + prnItemId + "/status")
+                        .header("Authorization", "Bearer " + tokenDoctor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISCONTINUED\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Mandatory clinical reason is required to discontinue medication order."));
+
+        // Discontinue with valid reason
+        mockMvc.perform(patch("/api/prescriptions/items/" + prnItemId + "/status")
+                        .header("Authorization", "Bearer " + tokenDoctor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISCONTINUED\",\"reason\":\"Fever resolved; therapy target achieved\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISCONTINUED"))
+                .andExpect(jsonPath("$.data.discontinueReason").value("Fever resolved; therapy target achieved"));
+
+        // [11] Test Medication Reconciliation dossier retrieval
+        mockMvc.perform(get("/api/prescriptions/patient/PAT-301/reconciliation")
+                        .header("Authorization", "Bearer " + tokenDoctor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.activeInpatientMedications").isArray())
+                .andExpect(jsonPath("$.data.discontinuedInpatientMedications").isArray());
+    }
+
+    @Test
+    @DisplayName("[12] Discharge Medication Workflow: Discharge prescription with take-home quantity and patient instructions")
+    void testDischargePrescriptionWorkflow() throws Exception {
+        String tokenDoctor = jwtTokenProvider.generateTokenFromUser(doctorUser);
+
+        PrescriptionRequest req = new PrescriptionRequest();
+        req.setPatientId("PAT-301");
+        req.setDoctorId("DOC-201");
+        req.setHospitalId("HOSP-101");
+        req.setOrderType("DISCHARGE");
+        req.setInstructions("Post-discharge outpatient pharmacotherapy regimen. Review in 14 days.");
+
+        List<PrescriptionRequest.MedicineItemDto> items = new ArrayList<>();
+
+        PrescriptionRequest.MedicineItemDto homeMed1 = new PrescriptionRequest.MedicineItemDto();
+        homeMed1.setName("Atorvastatin");
+        homeMed1.setDosage("20mg");
+        homeMed1.setDosageForm("Tablet");
+        homeMed1.setFrequency("Once Daily (OD)");
+        homeMed1.setRoute("Oral");
+        homeMed1.setMealTiming("Bedtime (HS)");
+        homeMed1.setDuration("30 days");
+        homeMed1.setTakeHomeQuantity("30 Tablets");
+        homeMed1.setRefillCount(1);
+        homeMed1.setPatientInstructions("Take 1 tablet every night at bedtime with a glass of water for lipid control.");
+        homeMed1.setOrderType("DISCHARGE");
+        items.add(homeMed1);
+
+        PrescriptionRequest.MedicineItemDto homeMed2 = new PrescriptionRequest.MedicineItemDto();
+        homeMed2.setName("Aspirin (Ecosprin)");
+        homeMed2.setDosage("75mg");
+        homeMed2.setDosageForm("Tablet");
+        homeMed2.setFrequency("Once Daily (OD)");
+        homeMed2.setRoute("Oral");
+        homeMed2.setMealTiming("After Meals");
+        homeMed2.setDuration("30 days");
+        homeMed2.setTakeHomeQuantity("30 Tablets");
+        homeMed2.setRefillCount(2);
+        homeMed2.setPatientInstructions("Take 1 tablet daily after breakfast. Do not take on an empty stomach.");
+        homeMed2.setOrderType("DISCHARGE");
+        items.add(homeMed2);
+
+        req.setMedicines(items);
+
+        mockMvc.perform(post("/api/prescriptions")
+                        .header("Authorization", "Bearer " + tokenDoctor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.orderType").value("DISCHARGE"))
+                .andExpect(jsonPath("$.data.items[0].takeHomeQuantity").value("30 Tablets"))
+                .andExpect(jsonPath("$.data.items[0].patientInstructions").value(org.hamcrest.Matchers.containsString("Take 1 tablet every night")));
     }
 }

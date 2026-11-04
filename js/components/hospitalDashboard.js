@@ -8702,6 +8702,30 @@ function renderDischargeDrawerContent(patientId, hospital, store) {
     statusLabel = 'Discharge Completed';
   }
 
+  // Extract reconciled discharge medications
+  const allPatientPrescriptions = store ? store.getPrescriptions(patient.id) : [];
+  const dischargeRxList = allPatientPrescriptions.filter(rx => rx.orderType === 'DISCHARGE' || (rx.items && rx.items.some(i => i.orderType === 'DISCHARGE')));
+  const dischargeMeds = [];
+  dischargeRxList.forEach(rx => {
+    (rx.items || []).forEach(item => {
+      if (item.status !== 'DISCONTINUED') {
+        let freqText = item.frequency || 'Once daily';
+        if (item.mealTiming && item.mealTiming !== 'None') {
+          freqText += ` (${item.mealTiming.replace(/_/g, ' ')})`;
+        }
+        dischargeMeds.push({
+          name: `${item.dosageForm ? item.dosageForm + ' ' : ''}${item.medicineName || item.name}`.trim(),
+          dosage: item.dosage,
+          frequency: freqText,
+          duration: item.duration,
+          takeHomeQuantity: item.takeHomeQuantity || item.duration || 'Standard',
+          refillCount: item.refillCount || 0,
+          instructions: item.instructions || rx.instructions
+        });
+      }
+    });
+  });
+
   return `
     <div class="discharge-drawer" role="dialog" aria-modal="true" aria-labelledby="dischargeDrawerTitle">
       <!-- Drawer Header -->
@@ -8798,6 +8822,55 @@ function renderDischargeDrawerContent(patientId, hospital, store) {
           </div>
         </div>
 
+        <!-- Reconciled Discharge Medications (Pharmacy Dossier) -->
+        <div class="discharge-drawer-section">
+          <div class="discharge-drawer-section-title">
+            <span>💊</span> RECONCILED DISCHARGE MEDICATIONS (TO TAKE AT HOME)
+          </div>
+          ${dischargeMeds.length > 0 ? `
+            <div style="overflow-x: auto; margin-top: 8px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                <thead>
+                  <tr style="background: #f1f5f9; border-bottom: 2px solid #e2e8f0; text-align: left;">
+                    <th style="padding: 8px 10px; color: #475569;">Medication &amp; Form</th>
+                    <th style="padding: 8px 10px; color: #475569;">Frequency &amp; Timing</th>
+                    <th style="padding: 8px 10px; color: #475569;">Take-Home Qty</th>
+                    <th style="padding: 8px 10px; color: #475569;">Refills</th>
+                    <th style="padding: 8px 10px; color: #475569;">Patient Directives</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${dischargeMeds.map(m => `
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                      <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">
+                        ${escapeHtml(m.name)} <span style="font-weight: 400; color: #64748b;">${escapeHtml(m.dosage || '')}</span>
+                      </td>
+                      <td style="padding: 8px 10px; color: #0f766e; font-weight: 600;">
+                        ${escapeHtml(m.frequency)}
+                      </td>
+                      <td style="padding: 8px 10px; color: #334155;">
+                        <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: 700;">
+                          ${escapeHtml(m.takeHomeQuantity || 'Standard')}
+                        </span>
+                      </td>
+                      <td style="padding: 8px 10px; color: #334155;">
+                        ${m.refillCount ? `${m.refillCount} refills` : '0'}
+                      </td>
+                      <td style="padding: 8px 10px; color: #64748b; font-size: 0.76rem;">
+                        ${escapeHtml(m.instructions || 'Take as directed')}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : `
+            <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 12px; text-align: center; color: #64748b; font-size: 0.8rem;">
+              No outpatient take-home medications reconciled for this patient yet.
+            </div>
+          `}
+        </div>
+
         <!-- 4. Multi-Tier Clearance Checklist -->
         <div class="discharge-drawer-section">
           <div class="discharge-drawer-section-title">
@@ -8807,8 +8880,8 @@ function renderDischargeDrawerContent(patientId, hospital, store) {
             <span class="clearance-pill-item ${isDoctorApproved || isDischarged ? 'cleared' : 'pending'}" style="font-size: 0.84rem;">
               ${isDoctorApproved || isDischarged ? '✓' : '○'} 1. Attending Clinician Sign-off (${isDoctorApproved || isDischarged ? 'Approved' : 'Pending'})
             </span>
-            <span class="clearance-pill-item ${isDoctorApproved || isDischarged ? 'cleared' : 'pending'}" style="font-size: 0.84rem;">
-              ${isDoctorApproved || isDischarged ? '✓' : '○'} 2. Inpatient Pharmacy Medication Reconciliation (${isDoctorApproved || isDischarged ? 'Reconciled' : 'Pending'})
+            <span class="clearance-pill-item ${dischargeMeds.length > 0 || isDoctorApproved || isDischarged ? 'cleared' : 'pending'}" style="font-size: 0.84rem;">
+              ${dischargeMeds.length > 0 || isDoctorApproved || isDischarged ? '✓' : '○'} 2. Inpatient Pharmacy Medication Reconciliation (${dischargeMeds.length > 0 ? `${dischargeMeds.length} Regimens Reconciled` : (isDoctorApproved || isDischarged ? 'Reconciled' : 'Pending')})
             </span>
             <span class="clearance-pill-item ${isDischarged ? 'cleared' : (isDoctorApproved ? 'cleared' : 'pending')}" style="font-size: 0.84rem;">
               ${isDischarged ? '✓' : (isDoctorApproved ? '✓' : '○')} 3. Administrative Settlement &amp; Billing (${isDischarged ? 'Settled' : (isDoctorApproved ? 'Cleared' : 'Pending')})

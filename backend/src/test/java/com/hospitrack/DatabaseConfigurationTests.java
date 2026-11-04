@@ -104,5 +104,27 @@ public class DatabaseConfigurationTests {
         assertEquals("sa", config.getUsername());
         assertEquals(raw, config.getJdbcUrl());
     }
+
+    @Test
+    @DisplayName("Brackets around credentials from template copies should be defensively stripped")
+    void testDefensiveBracketStripping() {
+        String raw = "postgresql://[postgres.ref]:[MySecretPass123]@aws-0-eu-west-2.pooler.supabase.com:6543/postgres";
+        DatabaseConfig.NormalizedDbConfig config = DatabaseConfig.normalize(raw, "sa", "");
+
+        assertNotNull(config);
+        assertEquals("postgres.ref", config.getUsername());
+        assertEquals("MySecretPass123", config.getPassword());
+    }
+
+    @Test
+    @DisplayName("Credentials embedded in URL must take precedence over default H2 'sa' fallback")
+    void testUrlCredentialsPrecedenceOverDefaults() {
+        String raw = "postgresql://postgres.actualuser:actualpass@aws-0-eu-west-2.pooler.supabase.com:6543/postgres";
+        DatabaseConfig.NormalizedDbConfig config = DatabaseConfig.normalize(raw, "sa", "");
+
+        assertNotNull(config);
+        assertEquals("postgres.actualuser", config.getUsername());
+        assertEquals("actualpass", config.getPassword());
+    }
 }
 

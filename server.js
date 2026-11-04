@@ -10,21 +10,30 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { URL } = require('url');
 
-const PORT = parseInt(process.env.PORT, 10) || 8000;
-const HOST = process.env.HOST || '0.0.0.0';
-const PUBLIC_DIR = __dirname;
-
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
-};
+// Automatically load .env file from project root if present (zero-dependency)
+const envFilePath = path.join(__dirname, '.env');
+if (fs.existsSync(envFilePath)) {
+  try {
+    const envLines = fs.readFileSync(envFilePath, 'utf8').split(/\r?\n/);
+    for (const rawLine of envLines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eqIdx = line.indexOf('=');
+      if (eqIdx !== -1) {
+        const key = line.slice(0, eqIdx).trim();
+        let val = line.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Server] Notice: Could not read .env file:', err.message);
+  }
+}
 
 const RAW_BACKEND_URL = (process.env.BACKEND_URL || process.env.API_BASE_URL || '').trim();
 let BACKEND_TARGET = null;
@@ -42,6 +51,23 @@ const BACKEND_HOST = BACKEND_TARGET ? BACKEND_TARGET.hostname : (process.env.BAC
 const BACKEND_PORT = BACKEND_TARGET
   ? (BACKEND_TARGET.port ? parseInt(BACKEND_TARGET.port, 10) : (BACKEND_IS_HTTPS ? 443 : 80))
   : (parseInt(process.env.BACKEND_PORT, 10) || 8080);
+
+// Use FRONTEND_PORT (default 8000) for Node web server to avoid colliding with Spring Boot backend (8080)
+const PORT = parseInt(process.env.FRONTEND_PORT, 10) || (process.env.PORT && parseInt(process.env.PORT, 10) !== BACKEND_PORT ? parseInt(process.env.PORT, 10) : 8000);
+const HOST = process.env.HOST || '127.0.0.1';
+const PUBLIC_DIR = __dirname;
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon'
+};
 
 /**
  * Normalizes PostgreSQL connection URLs for Spring Boot / JDBC compatibility.
@@ -182,12 +208,23 @@ function normalizeDatabaseUrl(rawUrl) {
     queryParams.delete('password');
   }
 
+  // Defensively strip template brackets if copied from documentation like [YOUR-PASSWORD]
+  if (username.startsWith('[') && username.endsWith(']')) {
+    username = username.slice(1, -1);
+  }
+  if (password.startsWith('[') && password.endsWith(']')) {
+    password = password.slice(1, -1);
+  }
+
   const isLocalDb = host === 'localhost' || host === '127.0.0.1' || host === 'host.docker.internal';
   if ((host.includes('supabase') || !isLocalDb) && !queryParams.has('sslmode')) {
     queryParams.set('sslmode', 'require');
   }
   if (port === '6543' && !queryParams.has('prepareThreshold')) {
     queryParams.set('prepareThreshold', '0');
+  }
+  if (!queryParams.has('tcpKeepAlive')) {
+    queryParams.set('tcpKeepAlive', 'true');
   }
 
   const queryParts = [];
@@ -496,13 +533,17 @@ async function ensureBackendRunning() {
     ? process.env.JAVA_OPTS.split(' ').filter(Boolean)
     : defaultJavaOpts;
 
+  const serverAddress = process.env.SERVER_ADDRESS || (isLocal ? '127.0.0.1' : '0.0.0.0');
+
   const javaArgs = [
     ...javaOpts,
     `-Dserver.port=${BACKEND_PORT}`,
+    `-Dserver.address=${serverAddress}`,
     `-Dspring.profiles.active=${springProfile}`,
     '-jar',
     jarPath,
     `--server.port=${BACKEND_PORT}`,
+    `--server.address=${serverAddress}`,
     `--spring.profiles.active=${springProfile}`
   ];
 

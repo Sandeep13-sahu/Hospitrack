@@ -1085,6 +1085,17 @@ class HospitrackStore {
     return res.data;
   }
 
+  async updateMedicationItemStatus(itemId, status, reason = null) {
+    const res = await this.apiRequest(`/api/prescriptions/items/${itemId}/status`, 'PATCH', { status, reason });
+    await this.syncAllData();
+    return res.data;
+  }
+
+  async getMedicationReconciliation(patientId) {
+    const res = await this.apiRequest(`/api/prescriptions/patient/${encodeURIComponent(patientId)}/reconciliation`, 'GET');
+    return res.data;
+  }
+
   async createLabRequest(payload) {
     const res = await this.apiRequest('/api/labs', 'POST', payload);
     await this.syncAllData();
